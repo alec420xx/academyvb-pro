@@ -6,13 +6,15 @@ import {
     PenTool, Type, Circle, Square, Minus, LogIn, Trophy,
     ArrowUpFromLine, Layers, Share2, Camera, Loader2,
     Check, AlertTriangle, Info, Monitor, Smartphone,
-    MenuSquare, UserPlus, LogOut, Link
+    MenuSquare, UserPlus, LogOut, Link, Hexagon, RefreshCw,
+    Cloud, CloudOff
 } from 'lucide-react';
 import { TeamManager } from './components/managers/TeamManager';
 import { LineupManager } from './components/managers/LineupManager';
+import { useBoardInteraction } from './hooks/useBoardInteraction';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
-import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
+import { generateId, getStorageKey, calculateDefaultPositions, migrateStorage } from './utils';
 import { Court } from './components/Court';
 import { PlayerToken } from './components/PlayerToken';
 import { MobileControls } from './components/MobileControls';
@@ -24,7 +26,7 @@ import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './compon
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
 import { saveData, loadData, STORAGE_KEYS } from './services/storage';
-import { LogIn, LogOut, Cloud, CloudOff } from 'lucide-react';
+
 
 export default function App() {
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -34,7 +36,7 @@ export default function App() {
     const [mode, setMode] = useState<'move' | 'draw' | 'line' | 'arrow' | 'polygon' | 'rect' | 'triangle'>('move');
     const [drawColor, setDrawColor] = useState('#000000');
     const [isExporting, setIsExporting] = useState(false);
-    const [selectedShapeIndex, setSelectedShapeIndex] = useState<number | null>(null);
+
     // Persistent Phase Selection State
     const [visiblePhasesMap, setVisiblePhasesMap] = useState<{ offense: string[], defense: string[] }>({
         offense: OFFENSE_PHASES.map(p => p.id),
@@ -57,19 +59,78 @@ export default function App() {
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
     const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
 
-    // --- WORKING MEMORY (Active Lineup) ---
-    // --- WORKING MEMORY (Active Lineup) ---
+    // --- DATA LOADING & SYNC ---
     const { saveRoster, saveRotations, loadInitialData, isSyncing, user } = useCloudData();
     const { signInWithGoogle, logout } = useAuth();
 
     const [roster, setRoster] = useState<Player[]>(DEFAULT_ROSTER);
     const [savedRotations, setSavedRotations] = useState<Record<string, SavedRotationData>>({});
     const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
-    const [playerPositions, setPlayerPositions] = useState<Record<string, PlayerPosition>>({});
-    const [paths, setPaths] = useState<DrawingPath[]>([]);
     const [currentNotes, setCurrentNotes] = useState('');
-    const [history, setHistory] = useState<any[]>([]);
-    const [future, setFuture] = useState<any[]>([]); // Redo stack
+
+    // --- BOARD INTERACTION HOOK ---
+    // We pass the "saved" data for the current view into the hook.
+    // The hook will initialize its state from that.
+    const currentStorageKey = getStorageKey(currentRotation, currentPhase, gameMode);
+    const currentSavedData = savedRotations[currentStorageKey];
+
+    const {
+        playerPositions, setPlayerPositions,
+        paths, setPaths,
+        currentPath,
+        hoveredElement,
+        mousePos,
+        isDrawing,
+        draggedPlayer, setDraggedPlayer,
+        selectedBenchPlayerId, setSelectedBenchPlayerId,
+        handlers,
+
+        undo, redo, history, future,
+        saveToHistory, resetHistory,
+        swapPlayers
+    } = useBoardInteraction({
+        mode,
+        drawColor,
+        roster,
+
+        activePlayerIds,
+        setActivePlayerIds,
+        currentRotation,
+        gameMode,
+        savedPaths: currentSavedData?.paths,
+        savedPositions: currentSavedData?.positions
+    });
+
+    // UI Refs
+    const courtRef = useRef<HTMLDivElement>(null);
+
+    // Bench Handler
+
+    const handleTokenDown = (e: React.MouseEvent | React.TouchEvent, player: Player) => {
+        e.stopPropagation();
+
+        const isCourtPlayer = activePlayerIds.includes(player.id);
+
+        if (!isCourtPlayer) {
+            // Bench Interaction
+            if (selectedBenchPlayerId === player.id) {
+                setSelectedBenchPlayerId(null);
+            } else {
+                setSelectedBenchPlayerId(player.id);
+                // Also set dragging for visual feedback or immediate drag
+                setDraggedPlayer({ id: player.id, isBench: true });
+            }
+        } else {
+            // Court Interaction
+            if (selectedBenchPlayerId) {
+                // Perform Swap
+                swapPlayers(selectedBenchPlayerId, player.id);
+            } else {
+                // Start Dragging Court Player
+                setDraggedPlayer({ id: player.id, isBench: false });
+            }
+        }
+    };
 
     // Load Data on Mount (Cloud -> Local)
     useEffect(() => {
@@ -94,159 +155,8 @@ export default function App() {
         saveRotations(savedRotations);
     }, [savedRotations]);
 
-    // Interaction
-    const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
-    const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState<string | null>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0, cx: 0, cy: 0 });
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
+    // --- HELPERS (Layout defaults) ---
 
-    const [hoveredElement, setHoveredElement] = useState<any>(null);
-    const [draggedVertex, setDraggedVertex] = useState<{ pathIndex: number, vertexIndex: number } | null>(null);
-
-    const courtRef = useRef<HTMLDivElement>(null);
-
-    // --- CONSTRAINT HELPERS ---
-    const getPlayerIdInZone = (targetZone: number) => {
-        for (let i = 0; i < 6; i++) {
-            const zone = getPlayerZone(i, currentRotation);
-            if (zone === targetZone) return activePlayerIds[i];
-        }
-        return null;
-    };
-
-    const getConstraints = (playerId: string) => {
-        const playerIdx = activePlayerIds.indexOf(playerId);
-        if (playerIdx === -1) return { minX: 0, maxX: 100, minY: 0, maxY: 100 };
-        const logicalZone = getPlayerZone(playerIdx, currentRotation);
-        const neighbors = { left: [] as number[], right: [] as number[], front: [] as number[], back: [] as number[] };
-
-        if (logicalZone === 1) { neighbors.left.push(6); neighbors.front.push(2); }
-        if (logicalZone === 2) { neighbors.left.push(3); neighbors.back.push(1); }
-        if (logicalZone === 3) { neighbors.left.push(4); neighbors.right.push(2); neighbors.back.push(6); }
-        if (logicalZone === 4) { neighbors.right.push(3); neighbors.back.push(5); }
-        if (logicalZone === 5) { neighbors.right.push(6); neighbors.front.push(4); }
-        if (logicalZone === 6) { neighbors.left.push(5); neighbors.right.push(1); neighbors.front.push(3); }
-
-        let limits = { minX: 0, maxX: 100, minY: 0, maxY: 100 };
-        const padding = 2;
-
-        // Helper: only respect neighbors that are actually on the court
-        const isValidPos = (pos: PlayerPosition) => pos && pos.x >= 0 && pos.x <= 100 && pos.y >= 0 && pos.y <= 100;
-
-        neighbors.left.forEach(z => {
-            const nId = getPlayerIdInZone(z);
-            if (nId && playerPositions[nId] && isValidPos(playerPositions[nId])) {
-                limits.minX = Math.max(limits.minX, playerPositions[nId].x + padding);
-            }
-        });
-        neighbors.right.forEach(z => {
-            const nId = getPlayerIdInZone(z);
-            if (nId && playerPositions[nId] && isValidPos(playerPositions[nId])) {
-                limits.maxX = Math.min(limits.maxX, playerPositions[nId].x - padding);
-            }
-        });
-        neighbors.front.forEach(z => {
-            const nId = getPlayerIdInZone(z);
-            if (nId && playerPositions[nId] && isValidPos(playerPositions[nId])) {
-                limits.minY = Math.max(limits.minY, playerPositions[nId].y + padding);
-            }
-        });
-        neighbors.back.forEach(z => {
-            const nId = getPlayerIdInZone(z);
-            if (nId && playerPositions[nId] && isValidPos(playerPositions[nId])) {
-                limits.maxY = Math.min(limits.maxY, playerPositions[nId].y - padding);
-            }
-        });
-
-        // --- ANTI-LOCKING LOGIC ---
-        // If the constraints are impossible (min > max), or if they pin the player 
-        // to the extreme edge (e.g. maxY <= 0), we relax the constraints to allow movement.
-
-        // 1. Fix inverted ranges (squeeze)
-        if (limits.minX > limits.maxX) { limits.minX = 0; limits.maxX = 100; }
-        if (limits.minY > limits.maxY) { limits.minY = 0; limits.maxY = 100; }
-
-        // 2. Fix pinned to top
-        if (limits.maxY <= 1) limits.maxY = 100;
-
-        return limits;
-    };
-
-    const shouldEnforceRules = (phase: string) => ['receive1', 'receive2'].includes(phase);
-
-    // New Hit Test Logic
-    const performHitTest = (cx: number, cy: number, width: number, height: number) => {
-        const absX = (cx / 100) * width;
-        const absY = (cy / 100) * height;
-
-        // 1. Check UI Controls
-        if (hoveredElement && hoveredElement.type !== 'vertex') {
-            const path = paths[hoveredElement.index];
-            if (path) {
-                let drawPoints = path.points.map(p => ({ x: (p.x / 100) * width, y: (p.y / 100) * height }));
-                let center = { x: 0, y: 0 };
-                if (path.type === 'line') {
-                    center = {
-                        x: (drawPoints[0].x + drawPoints[drawPoints.length - 1].x) / 2,
-                        y: (drawPoints[0].y + drawPoints[drawPoints.length - 1].y) / 2
-                    };
-                } else if (path.type === 'arrow' || path.type === 'draw') {
-                    const midIdx = Math.floor(drawPoints.length / 2);
-                    center = drawPoints[midIdx];
-                } else {
-                    center = getCentroid(drawPoints);
-                }
-                const spacing = 18;
-                const delX = center.x + spacing, delY = center.y;
-                const moveX = center.x - spacing, moveY = center.y;
-                const distToDel = Math.sqrt(Math.pow(absX - delX, 2) + Math.pow(absY - delY, 2));
-                const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
-                if (distToDel < 15) return { type: 'delete', index: hoveredElement.index };
-                if (distToMove < 15) return { type: 'move-shape', index: hoveredElement.index };
-                const distToCenter = Math.sqrt(Math.pow(absX - center.x, 2) + Math.pow(absY - center.y, 2));
-                if (distToCenter < 50) return { type: 'ui-proximity', index: hoveredElement.index };
-            }
-        }
-
-        // 2. Check Vertices
-        for (let i = 0; i < paths.length; i++) {
-            const path = paths[i];
-            if (path.type === 'polygon' || path.type === 'line' || path.type === 'triangle') {
-                for (let j = 0; j < path.points.length; j++) {
-                    const p = path.points[j];
-                    const absXVertex = (p.x / 100) * width;
-                    const absYVertex = (p.y / 100) * height;
-                    const dist = Math.sqrt(Math.pow(absX - absXVertex, 2) + Math.pow(absY - absYVertex, 2));
-                    if (dist < 10) return { type: 'vertex', index: i, vertexIndex: j };
-                }
-            }
-        }
-
-        // 3. Check Bodies
-        for (let i = paths.length - 1; i >= 0; i--) {
-            const path = paths[i];
-            let hit = false;
-            const absPoints = path.points.map(p => ({ x: (p.x / 100) * width, y: (p.y / 100) * height }));
-            const pt = { x: absX, y: absY };
-
-            if (path.type === 'polygon' || path.type === 'triangle') {
-                if (isPointInPolygon(pt, absPoints)) hit = true;
-            } else if (path.type === 'line' || path.type === 'arrow' || path.type === 'draw') {
-                for (let k = 0; k < absPoints.length - 1; k++) {
-                    if (distToSegment(pt, absPoints[k], absPoints[k + 1]) < 15) hit = true;
-                }
-            } else if (path.type === 'rect') {
-                const minX = Math.min(absPoints[0].x, absPoints[1].x);
-                const maxX = Math.max(absPoints[0].x, absPoints[1].x);
-                const minY = Math.min(absPoints[0].y, absPoints[1].y);
-                const maxY = Math.max(absPoints[0].y, absPoints[1].y);
-                if (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) hit = true;
-            }
-            if (hit) return { type: 'shape', index: i };
-        }
-        return null;
-    };
 
     // --- LOCAL STORAGE & CLOUD SYNC ---
     useEffect(() => {
@@ -346,10 +256,9 @@ export default function App() {
     }, [roster, currentTeamId]);
 
     // --- APP ACTIONS ---
-    const createTeam = () => {
-        const newTeam: Team = { id: generateId('team'), name: newItemName || 'New Team', roster: DEFAULT_ROSTER };
+    const createTeam = (name: string) => {
+        const newTeam: Team = { id: generateId('team'), name: name || 'New Team', roster: DEFAULT_ROSTER };
         saveTeamsToStorage([...teams, newTeam]);
-        setNewItemName('');
         setIsTeamManagerOpen(false);
         switchTeam(newTeam.id);
     };
@@ -372,7 +281,6 @@ export default function App() {
     const renameTeam = (id: string, newName: string) => {
         const newTeams = teams.map(t => t.id === id ? { ...t, name: newName } : t);
         saveTeamsToStorage(newTeams);
-        setEditId(null);
     };
 
     const createLineup = (name: string, rosterToUse: Player[], teamId = currentTeamId, currentLineupsList = lineups) => {
@@ -385,7 +293,6 @@ export default function App() {
             loadLineup(newLineup.id, newLineups);
         }
         setIsLineupManagerOpen(false);
-        setNewItemName('');
     };
 
     const loadLineup = (id: string, sourceLineups = lineups) => {
@@ -398,8 +305,8 @@ export default function App() {
         setCurrentRotation(1);
         setGameMode('offense');
         setCurrentPhase('receive1');
-        setHistory([]);
-        setFuture([]);
+        setCurrentPhase('receive1');
+        resetHistory();
         setIsLineupManagerOpen(false);
         setSelectedBenchPlayerId(null);
         const key = getStorageKey(1, 'receive1', 'offense');
@@ -456,8 +363,8 @@ export default function App() {
         setCurrentRotation(newRot);
         setCurrentPhase(newPhase);
         setGameMode(newMode);
-        setHistory([]);
-        setFuture([]);
+        setGameMode(newMode);
+        resetHistory();
         setSelectedBenchPlayerId(null);
     };
 
@@ -518,425 +425,15 @@ export default function App() {
         }, 100);
     };
 
-    const getCoords = (e: any) => {
-        // Priority to touches list for drag/move events
-        if (e.touches && e.touches.length > 0) {
-            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-        // Fallback to changedTouches (e.g. touchend)
-        if (e.changedTouches && e.changedTouches.length > 0) {
-            return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-        }
-        // Fallback to mouse (check if clientX is defined)
-        if (e.clientX !== undefined) {
-            return { x: e.clientX, y: e.clientY };
-        }
-        // If no coordinates found, return null to signal invalid input
-        return null;
-    };
 
-    useEffect(() => {
-        const handleWindowMove = (e: any) => {
-            const coords = getCoords(e);
-            if (!coords) return;
 
-            const { x, y } = coords;
-            const rect = courtRef.current?.getBoundingClientRect();
 
-            // Safety check for invalid rect
-            if (!rect || rect.width === 0 || rect.height === 0) return;
 
-            const cx = ((x - rect.left) / rect.width) * 100;
-            const cy = ((y - rect.top) / rect.height) * 100;
 
-            // CRITICAL: Safety check for invalid coordinates or out of bounds (ghost touches at 0,0)
-            // If coords are wildly outside the court (e.g. >50% margin), ignore them to prevent snapping
-            if (isNaN(cx) || isNaN(cy) || !isFinite(cx) || !isFinite(cy) || cx < -50 || cx > 150 || cy < -50 || cy > 150) return;
 
-            const dx = cx - (mousePos.cx || cx);
-            const dy = cy - (mousePos.cy || cy);
 
-            setMousePos({ x, y, cx, cy });
 
-            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null) {
-                const hit = performHitTest(cx, cy, rect.width, rect.height);
-                if (window.matchMedia("(hover: hover)").matches) {
-                    setHoveredElement(hit);
-                }
-            }
 
-            if (mode === 'move' && draggedVertex) {
-                e.preventDefault();
-                setPaths(prev => {
-                    const newPaths = [...prev];
-                    const path = { ...newPaths[draggedVertex.pathIndex] };
-                    const newPoints = [...path.points];
-                    newPoints[draggedVertex.vertexIndex] = { x: cx, y: cy };
-                    path.points = newPoints;
-                    newPaths[draggedVertex.pathIndex] = path;
-                    return newPaths;
-                });
-            }
-
-            if (mode === 'move' && selectedShapeIndex !== null) {
-                e.preventDefault();
-                setPaths(prev => {
-                    const newPaths = [...prev];
-                    const path = { ...newPaths[selectedShapeIndex] };
-                    path.points = path.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-                    newPaths[selectedShapeIndex] = path;
-                    return newPaths;
-                });
-            }
-
-            if (mode === 'move' && draggedPlayer) {
-                e.preventDefault();
-
-                if (!draggedPlayer.isBench) {
-                    let newX = cx;
-                    let newY = cy;
-
-                    // First, Hard Clamp to prevent off-screen (above/below court)
-                    newY = Math.max(0, Math.min(100, newY));
-                    newX = Math.max(0, Math.min(100, newX));
-
-                    if (shouldEnforceRules(currentPhase)) {
-                        const constraints = getConstraints(draggedPlayer.id);
-                        // Apply constraints, but respect the Hard Clamp we just did
-                        newX = Math.max(constraints.minX, Math.min(constraints.maxX, newX));
-                        newY = Math.max(constraints.minY, Math.min(constraints.maxY, newY));
-                    }
-                    setPlayerPositions(prev => ({ ...prev, [draggedPlayer.id]: { x: newX, y: newY } }));
-                }
-            }
-            else if (isDrawing && currentPath) {
-                e.preventDefault(); // Stop scrolling while drawing
-                let pointToAdd = { x: cx, y: cy };
-                if (currentPath.anchorId) {
-                    const anchorPos = playerPositions[currentPath.anchorId];
-                    if (anchorPos) pointToAdd = { x: cx - anchorPos.x, y: cy - anchorPos.y };
-                }
-
-                if (mode === 'line') {
-                    setCurrentPath(prev => prev ? ({ ...prev, points: [prev.points[0], pointToAdd] }) : null);
-                } else if (mode === 'polygon' || mode === 'triangle') {
-                    setCurrentPath(prev => {
-                        if (!prev) return null;
-                        const newPoints = [...prev.points];
-                        newPoints[newPoints.length - 1] = pointToAdd;
-                        return { ...prev, points: newPoints };
-                    });
-                } else {
-                    if (cx > -20 && cx < 120 && cy > -20 && cy < 120) {
-                        setCurrentPath(prev => prev ? ({ ...prev, points: [...prev.points, pointToAdd] }) : null);
-                    }
-                }
-            }
-        };
-
-        const handleWindowUp = (e: any) => {
-            if (draggedVertex || selectedShapeIndex !== null) {
-                setDraggedVertex(null);
-                setSelectedShapeIndex(null);
-                saveCurrentState();
-            }
-
-            if (draggedPlayer) {
-                if (draggedPlayer.isBench) {
-                    const rect = courtRef.current?.getBoundingClientRect();
-                    if (rect) {
-                        const coords = getCoords(e);
-                        if (coords) {
-                            const { x, y } = coords;
-                            const dropX = ((x - rect.left) / rect.width) * 100;
-                            const dropY = ((y - rect.top) / rect.height) * 100;
-                            let nearestId: string | null = null;
-                            let minDist = 15;
-                            Object.entries(playerPositions).forEach(([pid, pos]: [string, any]) => {
-                                const dist = Math.sqrt(Math.pow(pos.x - dropX, 2) + Math.pow(pos.y - dropY, 2));
-                                if (dist < minDist) { minDist = dist; nearestId = pid; }
-                            });
-
-                            if (nearestId) {
-                                const targetPlayerIndex = activePlayerIds.indexOf(nearestId);
-                                const targetZone = getPlayerZone(targetPlayerIndex, currentRotation);
-                                const draggedPlayerRole = roster.find(p => p.id === draggedPlayer.id)?.role;
-
-                                if (draggedPlayerRole === 'L' && isFrontRow(targetZone)) {
-                                    alert("Libero cannot replace a front-row player.");
-                                } else {
-                                    const benchId = draggedPlayer.id;
-                                    const newActive = activePlayerIds.map(id => id === nearestId ? benchId : id);
-                                    setActivePlayerIds(newActive);
-                                    setPlayerPositions(prev => {
-                                        const next = { ...prev };
-                                        // @ts-ignore
-                                        if (next[nearestId]) {
-                                            // @ts-ignore
-                                            next[benchId] = { ...next[nearestId] };
-                                            // @ts-ignore
-                                            delete next[nearestId];
-                                        }
-                                        return next;
-                                    });
-                                    setSelectedBenchPlayerId(null);
-                                }
-                            }
-                        }
-                    }
-                }
-                setDraggedPlayer(null);
-                saveCurrentState();
-            } else if (isDrawing && (mode === 'line' || mode === 'arrow' || mode === 'draw')) {
-                setIsDrawing(false);
-                if (currentPath && currentPath.points.length > 1) {
-                    setPaths(prev => [...prev, currentPath]);
-                    saveCurrentState();
-                }
-                setCurrentPath(null);
-            }
-        };
-
-        window.addEventListener('mousemove', handleWindowMove);
-        window.addEventListener('mouseup', handleWindowUp);
-        window.addEventListener('mouseleave', handleWindowUp);
-        window.addEventListener('touchmove', handleWindowMove, { passive: false });
-        window.addEventListener('touchend', handleWindowUp);
-
-        return () => {
-            window.removeEventListener('mousemove', handleWindowMove);
-            window.removeEventListener('mouseup', handleWindowUp);
-            window.removeEventListener('mouseleave', handleWindowUp);
-            window.removeEventListener('touchmove', handleWindowMove);
-            window.removeEventListener('touchend', handleWindowUp);
-        };
-    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos]);
-
-    const handleTokenDown = (e: any, playerId: string, isBench: boolean) => {
-        e.stopPropagation();
-        // Important for reliable dragging on touch devices
-        if (e.cancelable && e.type === 'touchstart') e.preventDefault();
-
-        if (isBench) {
-            if (selectedBenchPlayerId === playerId) setSelectedBenchPlayerId(null);
-            else setSelectedBenchPlayerId(playerId);
-            saveToHistory();
-            setDraggedPlayer({ id: playerId, isBench });
-            return;
-        }
-
-        if (mode === 'move') {
-            if (selectedBenchPlayerId) {
-                const benchId = selectedBenchPlayerId;
-                const courtId = playerId;
-                if (benchId === courtId) { setSelectedBenchPlayerId(null); return; }
-
-                const benchPlayer = roster.find(p => p.id === benchId);
-                const courtPlayerIndex = activePlayerIds.indexOf(courtId);
-                const targetZone = getPlayerZone(courtPlayerIndex, currentRotation);
-
-                if (benchPlayer?.role === 'L' && isFrontRow(targetZone)) {
-                    alert("Libero cannot replace a front-row player.");
-                    setSelectedBenchPlayerId(null);
-                    return;
-                }
-
-                const newActive = activePlayerIds.map(id => id === courtId ? benchId : id);
-                setActivePlayerIds(newActive);
-                setPlayerPositions(prev => {
-                    const next = { ...prev };
-                    next[benchId] = next[courtId];
-                    delete next[courtId];
-                    return next;
-                });
-                setSelectedBenchPlayerId(null);
-                saveCurrentState();
-            } else {
-                saveToHistory();
-                setDraggedPlayer({ id: playerId, isBench });
-            }
-        }
-        else if (mode === 'arrow' && !isBench) {
-            saveToHistory();
-            setIsDrawing(true);
-            setCurrentPath({ points: [{ x: 0, y: 0 }], color: drawColor, type: 'arrow', anchorId: playerId });
-        }
-    };
-
-    const handleCourtDown = (e: any) => {
-        // Prevent default scrolling immediately on touch
-        if (e.cancelable && e.type === 'touchstart') e.preventDefault();
-
-        const coords = getCoords(e);
-        if (!coords) return;
-        const { x, y } = coords;
-
-        // @ts-ignore
-        const rect = courtRef.current.getBoundingClientRect();
-        const cx = ((x - rect.left) / rect.width) * 100;
-        const cy = ((y - rect.top) / rect.height) * 100;
-
-        if (mode === 'move') {
-            // FIX: Always perform hit test on touch/click to check for UI buttons (move/delete)
-            // or new shape selections. Don't rely on 'hoveredElement' state alone.
-            let hit = performHitTest(cx, cy, rect.width, rect.height);
-
-            // If no immediate hit, but we have a hover element, we might be clicking "off" it
-            // checking specifically for UI proximity or button clicks was done by performHitTest
-            // utilizing the current hoveredElement state internally.
-
-            if (!hit && e.type === 'touchstart') {
-                // If we missed everything, clear selection
-                setHoveredElement(null);
-            } else if (e.type === 'touchstart') {
-                // Update hover on touch
-                setHoveredElement(hit);
-            }
-
-            if (hit) {
-                if (hit.type === 'delete') {
-                    setPaths(prev => prev.filter((_, i) => i !== hit.index));
-                    setHoveredElement(null);
-                    saveCurrentState();
-                    return;
-                }
-                if (hit.type === 'move-shape') {
-                    setSelectedShapeIndex(hit.index);
-                    saveToHistory();
-                    return;
-                }
-                if (hit.type === 'vertex') {
-                    setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
-                    saveToHistory();
-                    return;
-                }
-                if ((hit.type === 'shape' || hit.type === 'ui-proximity') && e.type === 'touchstart') {
-                    setHoveredElement(hit);
-                    return;
-                }
-            }
-            if (!hit && e.type === 'touchstart') setHoveredElement(null);
-            setSelectedBenchPlayerId(null);
-        }
-        else if (['draw', 'arrow'].includes(mode)) {
-            saveToHistory();
-            setIsDrawing(true);
-            setCurrentPath({
-                points: [{ x: cx, y: cy }],
-                color: drawColor,
-                // @ts-ignore
-                type: mode,
-                anchorId: null,
-                modifiers: { shift: e.shiftKey }
-            });
-        } else if (mode === 'line') {
-            saveToHistory();
-            setIsDrawing(true);
-            setCurrentPath({
-                points: [{ x: cx, y: cy }, { x: cx, y: cy }],
-                color: drawColor,
-                type: 'line'
-            });
-        } else if (mode === 'polygon') {
-            e.stopPropagation();
-            const newPoint = { x: cx, y: cy };
-
-            if (!isDrawing) {
-                saveToHistory();
-                setIsDrawing(true);
-                setCurrentPath({
-                    points: [newPoint, newPoint],
-                    color: drawColor,
-                    type: 'polygon',
-                    anchorId: null
-                });
-            } else {
-                // @ts-ignore
-                const startPoint = currentPath.points[0];
-                const dist = Math.sqrt(Math.pow(newPoint.x - startPoint.x, 2) + Math.pow(newPoint.y - startPoint.y, 2));
-
-                // @ts-ignore
-                if (dist < 3 && currentPath.points.length > 2) {
-                    // @ts-ignore
-                    setPaths(prev => [...prev, { ...currentPath, points: currentPath.points.slice(0, -1) }]);
-                    saveCurrentState();
-                    setCurrentPath(null);
-                    setIsDrawing(false);
-                    return;
-                }
-
-                setCurrentPath(prev => {
-                    if (!prev) return null;
-                    const newPoints = [...prev.points];
-                    newPoints[newPoints.length - 1] = newPoint;
-                    return { ...prev, points: [...newPoints, newPoint] };
-                });
-            }
-        }
-    };
-
-    const handleDoubleClick = (e: any) => {
-        if (mode === 'polygon' && isDrawing) {
-            e.preventDefault(); e.stopPropagation();
-            if (!currentPath) return;
-            let finalPoints = [...currentPath.points];
-            finalPoints.pop();
-            const uniquePoints = [];
-            if (finalPoints.length > 0) uniquePoints.push(finalPoints[0]);
-            for (let i = 1; i < finalPoints.length; i++) {
-                const p = finalPoints[i];
-                const prev = uniquePoints[uniquePoints.length - 1];
-                if (Math.sqrt(Math.pow(p.x - prev.x, 2) + Math.pow(p.y - prev.y, 2)) > 0.5) uniquePoints.push(p);
-            }
-            if (uniquePoints.length >= 3) {
-                setPaths(prev => [...prev, { ...currentPath, points: uniquePoints }]);
-                saveCurrentState();
-            }
-            setCurrentPath(null);
-            setIsDrawing(false);
-        }
-    };
-
-    const saveToHistory = () => {
-        const currentState = {
-            playerPositions: JSON.parse(JSON.stringify(playerPositions)),
-            paths: JSON.parse(JSON.stringify(paths)),
-            activePlayers: [...activePlayerIds]
-        };
-        setHistory(prev => [...prev, currentState]);
-        setFuture([]);
-        if (history.length > 20) setHistory(prev => prev.slice(1));
-    };
-
-    const undo = () => {
-        if (history.length === 0) return;
-        const currentState = {
-            playerPositions: JSON.parse(JSON.stringify(playerPositions)),
-            paths: JSON.parse(JSON.stringify(paths)),
-            activePlayers: [...activePlayerIds]
-        };
-        setFuture(prev => [currentState, ...prev]);
-        const previousState = history[history.length - 1];
-        setPlayerPositions(previousState.playerPositions);
-        setPaths(previousState.paths);
-        setActivePlayerIds(previousState.activePlayers);
-        setHistory(prev => prev.slice(0, -1));
-    };
-
-    const redo = () => {
-        if (future.length === 0) return;
-        const currentState = {
-            playerPositions: JSON.parse(JSON.stringify(playerPositions)),
-            paths: JSON.parse(JSON.stringify(paths)),
-            activePlayers: [...activePlayerIds]
-        };
-        setHistory(prev => [...prev, currentState]);
-        const nextState = future[0];
-        setPlayerPositions(nextState.playerPositions);
-        setPaths(nextState.paths);
-        setActivePlayerIds(nextState.activePlayers);
-        setFuture(prev => prev.slice(1));
-    };
 
     const updateRoster = (index: number, field: keyof Player, value: string) => {
         if (field === 'number' && value.length > 4) return;
@@ -949,24 +446,12 @@ export default function App() {
     const currentPhasesList = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
     const currentAttacker = currentPhasesList.find(p => p.id === currentPhase)?.attacker;
 
-    useEffect(() => {
-        if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
-            setPaths(prev => [...prev, { ...currentPath, points: currentPath.points.slice(0, -1) }]);
-            saveCurrentState();
-            setCurrentPath(null);
-            setIsDrawing(false);
-        } else if (isDrawing) {
-            setCurrentPath(null);
-            setIsDrawing(false);
-        }
-    }, [mode]);
+
 
     // Dynamic cursor logic
     let cursorClass = 'cursor-default';
     if (mode === 'move') {
         if (draggedPlayer && !draggedPlayer.isBench) {
-            cursorClass = 'cursor-move';
-        } else if (selectedShapeIndex !== null || draggedVertex) {
             cursorClass = 'cursor-move';
         } else if (hoveredElement) {
             if (hoveredElement.type === 'delete') cursorClass = 'cursor-pointer';
@@ -1164,37 +649,35 @@ export default function App() {
                                         <button onClick={() => handleExport('court-capture-area', `Rotation-${currentRotation}-${currentPhase}`)} disabled={isExporting} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm">
                                             {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
                                         </button>
-
-                                        <div className="flex gap-1">
-                                            <button onClick={undo} disabled={history.length === 0} className={`p-2 rounded-lg border border-slate-700 ${history.length === 0 ? 'bg-slate-800 text-slate-600' : 'bg-slate-800 text-white'}`}><Undo size={18} /></button>
-                                            <button onClick={redo} disabled={future.length === 0} className={`p-2 rounded-lg border border-slate-700 ${future.length === 0 ? 'bg-slate-800 text-slate-600' : 'bg-slate-800 text-white'}`}><Redo size={18} /></button>
-                                        </div>
-
-                                        <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700 overflow-x-auto no-scrollbar max-w-[200px] md:max-w-none">
-                                            <button onClick={() => setMode('move')} className={`p-1.5 rounded-md ${mode === 'move' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}><Move size={18} /></button>
-                                            <button onClick={() => setMode('draw')} className={`p-1.5 rounded-md ${mode === 'draw' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}><Pencil size={18} /></button>
-                                            <button onClick={() => setMode('line')} className={`p-1.5 rounded-md ${mode === 'line' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}><DiagonalLineIcon size={18} /></button>
-                                            <button onClick={() => setMode('arrow')} className={`p-1.5 rounded-md ${mode === 'arrow' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}><CustomArrowIcon size={18} /></button>
-                                            <button onClick={() => setMode('polygon')} className={`p-1.5 rounded-md ${mode === 'polygon' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}><Hexagon size={18} /></button>
+                                        <div className="w-px h-8 bg-slate-800 mx-1"></div>
+                                        <button onClick={undo} disabled={history.length === 0} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm disabled:opacity-50"><RotateCcw size={18} /></button>
+                                        <button onClick={redo} disabled={future.length === 0} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm disabled:opacity-50 rotate-180"><RotateCcw size={18} /></button>
+                                        <div className="w-px h-8 bg-slate-800 mx-1"></div>
+                                        <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                                            <button onClick={() => setMode('move')} className={`p-2 rounded ${mode === 'move' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><MousePointer2 size={18} /></button>
+                                            <button onClick={() => setMode('draw')} className={`p-2 rounded ${mode === 'draw' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><Pen size={18} /></button>
+                                            <button onClick={() => setMode('line')} className={`p-2 rounded ${mode === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><Minus size={18} /></button>
+                                            <button onClick={() => setMode('arrow')} className={`p-2 rounded ${mode === 'arrow' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><Move size={18} /></button>
+                                            <button onClick={() => setMode('polygon')} className={`p-2 rounded ${mode === 'polygon' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><Hexagon size={18} /></button>
                                         </div>
                                     </div>
-
-                                    {/* Right Side: Colors Only */}
-                                    <div className="flex items-center gap-2">
-                                        {['draw', 'arrow', 'line', 'rect', 'polygon'].includes(mode) && (
-                                            <div className="flex items-center gap-1">
-                                                {DRAWING_COLORS.map(c => (
-                                                    <button key={c} onClick={() => setDrawColor(c)} className={`w-5 h-5 rounded-full border border-white transition-transform hover:scale-110 flex-shrink-0 ${drawColor === c ? 'ring-2 ring-offset-1 ring-white scale-110' : ''}`} style={{ backgroundColor: c }} />
-                                                ))}
-                                            </div>
-                                        )}
+                                    {/* Right Side: Colors */}
+                                    <div className="flex bg-slate-800 rounded-lg p-1.5 border border-slate-700 gap-1.5">
+                                        {DRAWING_COLORS.map(color => (
+                                            <button
+                                                key={color}
+                                                onClick={() => setDrawColor(color)}
+                                                className={`w-6 h-6 rounded-full border-2 transition-all ${drawColor === color ? 'border-white scale-110 shadow-lg' : 'border-transparent hover:scale-105'}`}
+                                                style={{ backgroundColor: color }}
+                                            />
+                                        ))}
                                     </div>
                                 </div>
 
                                 {/* Court Wrapper: order-1 on mobile (top), order-2 on desktop (below toolbar) */}
                                 {/* Reduced margin to mt-4 and relying on robust touch/coordinate handling */}
                                 <div className="w-full bg-slate-800 p-1 md:p-2 rounded-xl shadow-2xl ring-1 ring-slate-700 relative z-10 order-1 lg:order-2 mt-4 lg:mt-0">
-                                    <Court courtRef={courtRef} paths={paths} currentPath={currentPath} onMouseDown={handleCourtDown} onDoubleClick={handleDoubleClick} playerPositions={playerPositions} attacker={currentAttacker} hoveredElement={hoveredElement} cursor={cursorClass}>
+                                    <Court courtRef={courtRef} paths={paths} currentPath={currentPath} onMouseDown={handlers.onMouseDown} onDoubleClick={handlers.onDoubleClick} playerPositions={playerPositions} attacker={currentAttacker} hoveredElement={hoveredElement} cursor={cursorClass}>
                                         {Object.entries(playerPositions).map(([id, pos]: [string, any]) => {
                                             const player = roster.find(p => p.id === id);
                                             if (!player) return null;
@@ -1216,7 +699,7 @@ export default function App() {
                                 {/* MOBILE & TABLET: BENCH STRIP (Visible below lg screens) - order-3 */}
                                 <div className="lg:hidden w-full bg-slate-900 border-b border-slate-800 py-4 px-2 overflow-x-auto no-scrollbar flex items-center gap-3 mt-4 min-h-[80px] order-3">
                                     {roster.filter(p => !activePlayerIds.includes(p.id)).map(player => (
-                                        <div key={player.id} className={`flex-none w-10 h-10 rounded-full border-2 flex flex-col items-center justify-center relative ${selectedBenchPlayerId === player.id ? 'ring-4 ring-blue-500 z-10' : ''} ${getRoleColor(player.role)} touch-none`} onMouseDown={(e) => handleTokenDown(e, player.id, true)} onTouchStart={(e) => handleTokenDown(e, player.id, true)}>
+                                        <div key={player.id} className={`flex-none w-10 h-10 rounded-full border-2 flex flex-col items-center justify-center relative ${selectedBenchPlayerId === player.id ? 'ring-4 ring-blue-500 z-10' : ''} ${getRoleColor(player.role)} touch-none`} onMouseDown={(e) => handleTokenDown(e, player)} onTouchStart={(e) => handleTokenDown(e, player)}>
                                             <span className="text-[10px] font-black leading-none">{player.number}</span>
                                             <span className="text-[7px] font-bold uppercase leading-none opacity-90">{player.role}</span>
                                         </div>
