@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText } from 'lucide-react';
+import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText, CheckCircle2, Save, LogIn, LogOut } from 'lucide-react';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
@@ -1312,8 +1312,8 @@ export default function App() {
                             onClick={() => saveCurrentState()}
                             disabled={saveStatus === 'saved' || saveStatus === 'saving'}
                             className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm ${saveStatus === 'unsaved'
-                                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                : 'bg-slate-800 text-slate-500 border border-slate-700'
                                 }`}
                         >
                             <Save size={12} />
@@ -1530,8 +1530,8 @@ export default function App() {
                                                 onClick={() => saveCurrentState()}
                                                 disabled={saveStatus === 'saved' || saveStatus === 'saving'}
                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${saveStatus === 'unsaved'
-                                                        ? 'bg-blue-600 text-white shadow-md active:scale-95'
-                                                        : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                                    ? 'bg-blue-600 text-white shadow-md active:scale-95'
+                                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
                                                     }`}
                                             >
                                                 <Save size={14} />
