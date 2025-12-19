@@ -70,7 +70,7 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                     </div>
                     {/* BIG TEAM NAME HEADER + MODE */}
                     <h1 className="text-4xl font-black text-slate-900 uppercase mt-4 mb-2 max-w-[800px] leading-normal pb-1">
-                        {teams.find(t => t.id === currentTeamId)?.name} - <span className={gameMode === 'offense' ? "text-red-600" : "text-blue-600"}>{gameMode}</span>
+                        {teams.find(t => t.id === currentTeamId)?.name} <span className={gameMode === 'offense' ? "text-red-600" : "text-blue-600"}>{gameMode}</span>
                     </h1>
                     <h2 className="text-2xl font-bold text-slate-500 uppercase max-w-[800px] leading-normal pb-1">
                         {lineups.find(l => l.id === currentLineupId)?.name}
