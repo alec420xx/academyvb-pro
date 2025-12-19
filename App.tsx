@@ -157,39 +157,8 @@ export default function App() {
         };
     }, [user]);
 
-    // --- REAL-TIME VIEW SYNC ---
-    // Update active view when cloud/local storage updates (via savedRotations)
-    useEffect(() => {
-        // Skip if no user (local mode handles its own state usually, but persistence logic is same)
-        // Actually, local mode also uses savedRotations.
 
-        const key = getStorageKey(currentRotation, currentPhase, gameMode);
-        const data = savedRotations[key];
 
-        if (data) {
-            // Only update if not currently interacting to avoid jitter/interruptions
-            if (!draggedPlayer && !isDrawing) {
-                // Use JSON stringify for simple deep comparison to avoid loops/unnecessary renders
-                if (JSON.stringify(playerPositions) !== JSON.stringify(data.positions)) {
-                    setPlayerPositions(data.positions);
-                }
-                if (JSON.stringify(paths) !== JSON.stringify(data.paths)) {
-                    setPaths(data.paths);
-                }
-                if (JSON.stringify(activePlayerIds) !== JSON.stringify(data.activePlayers)) {
-                    setActivePlayerIds(data.activePlayers);
-                }
-                if (currentNotes !== (data.notes || '')) {
-                    setCurrentNotes(data.notes || '');
-                }
-            }
-        }
-    }, [savedRotations, currentRotation, currentPhase, gameMode, draggedPlayer, isDrawing]);
-
-    // Auto-Save Roster
-    useEffect(() => {
-        saveRoster(roster);
-    }, [roster]);
 
     // Auto-Save Rotations
     useEffect(() => {
@@ -438,6 +407,34 @@ export default function App() {
         }, 500);
         return () => clearTimeout(timer);
     }, [playerPositions, paths, activePlayerIds, currentNotes]);
+
+    // --- REAL-TIME VIEW SYNC ---
+    // Update active view when cloud/local storage updates (via savedRotations)
+    useEffect(() => {
+        // Skip if no user (local mode handles its own state usually, but persistence logic is same)
+
+        const key = getStorageKey(currentRotation, currentPhase, gameMode);
+        const data = savedRotations[key];
+
+        if (data) {
+            // Only update if not currently interacting to avoid jitter/interruptions
+            if (!draggedPlayer && !isDrawing) {
+                // Use JSON stringify for simple deep comparison to avoid loops/unnecessary renders
+                if (JSON.stringify(playerPositions) !== JSON.stringify(data.positions)) {
+                    setPlayerPositions(data.positions);
+                }
+                if (JSON.stringify(paths) !== JSON.stringify(data.paths)) {
+                    setPaths(data.paths);
+                }
+                if (JSON.stringify(activePlayerIds) !== JSON.stringify(data.activePlayers)) {
+                    setActivePlayerIds(data.activePlayers);
+                }
+                if (currentNotes !== (data.notes || '')) {
+                    setCurrentNotes(data.notes || '');
+                }
+            }
+        }
+    }, [savedRotations, currentRotation, currentPhase, gameMode, draggedPlayer, isDrawing]);
 
     useEffect(() => {
         if (!currentTeamId || teams.length === 0) return;
