@@ -1446,14 +1446,7 @@ export default function App() {
                                 </div>
                             </div>
 
-                            {/* Mobile Actions */}
-                            <button
-                                onClick={() => handleExport('full-report-grid', `Start_Rot_${printViewStartRotation}_${gameMode.toUpperCase()}_Plan`)}
-                                className="w-full bg-slate-100 hover:bg-white text-slate-900 px-4 py-4 rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2 mt-4"
-                            >
-                                <Download size={20} />
-                                <span>Download PDF / Image</span>
-                            </button>
+
                         </div>
 
                         {/* HIDDEN EXPORT CANVAS */}
