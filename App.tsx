@@ -47,7 +47,7 @@ export default function App() {
     const [currentLineupId, setCurrentLineupId] = useState<string | null>(null);
 
     // --- SAVE STATUS STATE ---
-    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'unsaved'>('saved');
 
     // --- UI STATE ---
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
@@ -443,13 +443,64 @@ export default function App() {
     };
 
 
+    // DIRTY CHECK EFFECT (Replaces Auto-Save)
+    // Checks if current state matches saved state to update interface
     useEffect(() => {
         if (!currentLineupId) return;
-        const timer = setTimeout(() => {
-            saveCurrentState();
-        }, 500);
+
+        const checkDirty = () => {
+            const key = getStorageKey(currentRotation, currentPhase, gameMode);
+            const saved = savedRotations[key];
+
+            // If we have no saved data for this view, and we are using defaults, it might count as 'saved' or 'unsaved'
+            // But usually if we just loaded, it should match.
+
+            const currentData = {
+                positions: playerPositions,
+                paths: paths,
+                activePlayers: activePlayerIds,
+                notes: currentNotes
+            };
+
+            // If saved exists, we compare. If not, we definitely differ (unsaved).
+            // We need to be careful about "undefined" paths in saved vs empty array in current
+            if (!saved) {
+                // If we are locally just viewing defaults and haven't saved, it's effectively unsaved if we care about persistence
+                // But to avoid annoyance, maybe only if we deviate from defaults? 
+                // Let's stick to: if it's not in savedRotations, it's unsaved.
+                setSaveStatus('unsaved');
+                return;
+            }
+
+            const cleanSaved = {
+                positions: saved.positions,
+                paths: saved.paths || [],
+                activePlayers: saved.activePlayers,
+                notes: saved.notes || ''
+            };
+
+            // Normalize current paths to empty array if null
+            const cleanCurrent = {
+                ...currentData,
+                paths: currentData.paths || [],
+                notes: currentData.notes || ''
+            };
+
+            if (!deepEqual(cleanSaved.positions, cleanCurrent.positions) ||
+                !deepEqual(cleanSaved.paths, cleanCurrent.paths) ||
+                !deepEqual(cleanSaved.activePlayers, cleanCurrent.activePlayers) ||
+                cleanSaved.notes !== cleanCurrent.notes) {
+                setSaveStatus('unsaved');
+            } else {
+                setSaveStatus('saved');
+            }
+        };
+
+        // Debounce slightly to avoid flicker on load
+        const timer = setTimeout(checkDirty, 200);
         return () => clearTimeout(timer);
-    }, [playerPositions, paths, activePlayerIds, currentNotes]);
+
+    }, [playerPositions, paths, activePlayerIds, currentNotes, savedRotations, currentRotation, currentPhase, gameMode]);
 
     // --- REAL-TIME VIEW SYNC ---
     // Update active view when cloud/local storage updates (via savedRotations)
@@ -1248,12 +1299,22 @@ export default function App() {
                                     <span className="text-red-500">Error</span>
                                 </>
                             )}
+                            {saveStatus === 'unsaved' && (
+                                <>
+                                    <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                    <span className="text-orange-400">Unsaved</span>
+                                </>
+                            )}
                         </div>
 
                         {/* MANUAL SAVE BUTTON */}
                         <button
                             onClick={() => saveCurrentState()}
-                            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-xs font-bold transition-colors shadow-sm"
+                            disabled={saveStatus === 'saved' || saveStatus === 'saving'}
+                            className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm ${saveStatus === 'unsaved'
+                                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                }`}
                         >
                             <Save size={12} />
                             Save Now
@@ -1458,10 +1519,24 @@ export default function App() {
                                     {/* Left Side: Camera, Undo/Redo, Tools */}
                                     <div className="flex items-center gap-2">
                                         {/* MOBILE SAVE STATUS (Visible only on mobile/tablet) */}
-                                        <div className="lg:hidden flex items-center mr-2">
+                                        <div className="lg:hidden flex items-center mr-2 gap-2">
                                             {saveStatus === 'saving' && <Loader2 size={16} className="animate-spin text-blue-400" />}
                                             {saveStatus === 'saved' && <CheckCircle2 size={16} className="text-green-500" />}
                                             {saveStatus === 'error' && <AlertTriangle size={16} className="text-red-500" />}
+                                            {saveStatus === 'unsaved' && <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
+
+                                            {/* Mobile Save Button */}
+                                            <button
+                                                onClick={() => saveCurrentState()}
+                                                disabled={saveStatus === 'saved' || saveStatus === 'saving'}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${saveStatus === 'unsaved'
+                                                        ? 'bg-blue-600 text-white shadow-md active:scale-95'
+                                                        : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                                    }`}
+                                            >
+                                                <Save size={14} />
+                                                Save
+                                            </button>
                                         </div>
 
                                         <button onClick={() => handleExport('court-capture-area', `Rotation-${currentRotation}-${currentPhase}`)} disabled={isExporting} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm">
