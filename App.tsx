@@ -11,6 +11,10 @@ import { RosterView } from './components/RosterView';
 import { RotationSquare } from './components/RotationSquare';
 import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
+import { useCloudData } from './hooks/useCloudData';
+import { useAuth } from './contexts/AuthContext';
+import { saveData, loadData, STORAGE_KEYS } from './services/storage';
+import { LogIn, LogOut, Cloud, CloudOff } from 'lucide-react';
 
 export default function App() {
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -47,6 +51,10 @@ export default function App() {
     const [editName, setEditName] = useState('');
 
     // --- WORKING MEMORY (Active Lineup) ---
+    // --- WORKING MEMORY (Active Lineup) ---
+    const { saveRoster, saveRotations, loadInitialData, isSyncing, user } = useCloudData();
+    const { signInWithGoogle, logout } = useAuth();
+
     const [roster, setRoster] = useState<Player[]>(DEFAULT_ROSTER);
     const [savedRotations, setSavedRotations] = useState<Record<string, SavedRotationData>>({});
     const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
@@ -55,6 +63,29 @@ export default function App() {
     const [currentNotes, setCurrentNotes] = useState('');
     const [history, setHistory] = useState<any[]>([]);
     const [future, setFuture] = useState<any[]>([]); // Redo stack
+
+    // Load Data on Mount (Cloud -> Local)
+    useEffect(() => {
+        loadInitialData().then(data => {
+            if (data.roster) setRoster(data.roster);
+            if (data.rotations) {
+                setSavedRotations(data.rotations);
+                // Determine initial positions after load
+                // (This logic mimics the old behavior but waits for data)
+                // We will let the existing rotation-change logic handle this if we set state
+            }
+        });
+    }, [user]); // Reload if user changes
+
+    // Auto-Save Roster
+    useEffect(() => {
+        saveRoster(roster);
+    }, [roster]);
+
+    // Auto-Save Rotations
+    useEffect(() => {
+        saveRotations(savedRotations);
+    }, [savedRotations]);
 
     // Interaction
     const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
@@ -210,24 +241,27 @@ export default function App() {
         return null;
     };
 
-    // --- LOCAL STORAGE SYNC ---
+    // --- LOCAL STORAGE & CLOUD SYNC ---
     useEffect(() => {
-        migrateStorage(); // FIX: Initialize and sanitize data
+        migrateStorage();
 
-        const loadedTeams = JSON.parse(localStorage.getItem('avb_teams') || '[]');
-        const loadedLineups = JSON.parse(localStorage.getItem('avb_lineups') || '[]');
+        const load = async () => {
+            const loadedTeams = await loadData(user?.uid, STORAGE_KEYS.TEAMS) || [];
+            const loadedLineups = await loadData(user?.uid, STORAGE_KEYS.LINEUPS) || [];
 
-        if (loadedTeams.length === 0) {
-            const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-            setTeams([defaultTeam]);
-            setCurrentTeamId(defaultTeam.id);
-            localStorage.setItem('avb_teams', JSON.stringify([defaultTeam]));
-        } else {
-            setTeams(loadedTeams);
-            setCurrentTeamId(loadedTeams[0].id);
-        }
-        setLineups(loadedLineups);
-    }, []);
+            if (loadedTeams.length === 0) {
+                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
+                setTeams([defaultTeam]);
+                setCurrentTeamId(defaultTeam.id);
+                saveData(user?.uid, STORAGE_KEYS.TEAMS, [defaultTeam]);
+            } else {
+                setTeams(loadedTeams);
+                setCurrentTeamId(loadedTeams[0].id);
+            }
+            setLineups(loadedLineups);
+        };
+        load();
+    }, [user]);
 
     useEffect(() => {
         if (currentTeamId && lineups.length > 0) {
@@ -251,12 +285,12 @@ export default function App() {
 
     const saveTeamsToStorage = (newTeams: Team[]) => {
         setTeams(newTeams);
-        localStorage.setItem('avb_teams', JSON.stringify(newTeams));
+        saveData(user?.uid, STORAGE_KEYS.TEAMS, newTeams);
     };
 
     const saveLineupsToStorage = (newLineups: Lineup[]) => {
         setLineups(newLineups);
-        localStorage.setItem('avb_lineups', JSON.stringify(newLineups));
+        saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
     };
 
     const saveCurrentState = () => {
@@ -980,7 +1014,25 @@ export default function App() {
 
                     {/* RIGHT: ACTIONS */}
                     <div className="flex-1 flex justify-end items-center gap-2">
-
+                        {/* AUTH BUTTON */}
+                        {user ? (
+                            <div className="flex items-center gap-2 mr-2 bg-slate-800 rounded-lg p-1 pr-3 border border-slate-700">
+                                {user.photoURL ? (
+                                    <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-md" />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center font-bold text-white">{user.email?.[0].toUpperCase()}</div>
+                                )}
+                                <div className="text-xs text-right hidden lg:block">
+                                    <div className="font-bold text-white leading-none">{user.displayName}</div>
+                                    <button onClick={() => logout()} className="text-[10px] text-slate-400 hover:text-red-400 leading-none mt-1">Sign Out</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button onClick={signInWithGoogle} className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm transition-colors mr-2">
+                                <LogIn size={16} />
+                                <span>Sign In</span>
+                            </button>
+                        )}
 
                         <button onClick={() => setIsTeamManagerOpen(true)} className="p-2 lg:px-3 lg:py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm font-bold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors" title="Teams">
                             <span>Teams</span>
@@ -1012,7 +1064,14 @@ export default function App() {
                         <button onClick={() => handleExport('full-report-grid', `GamePlan-${gameMode}`)} disabled={isExporting} className={`${gameMode === 'offense' ? 'bg-red-600' : 'bg-blue-600'} text-white p-1.5 rounded border border-white/10 shadow-lg`}><Download size={16} /></button>
                     </div>
                 ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                        {user ? (
+                            <button onClick={() => logout()} className="w-8 h-8 rounded-full bg-slate-800 border border-slate-600 overflow-hidden">
+                                {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <span className="text-xs font-bold text-white">{user.email?.[0].toUpperCase()}</span>}
+                            </button>
+                        ) : (
+                            <button onClick={signInWithGoogle} className="p-1.5 bg-blue-600 rounded text-white"><LogIn size={16} /></button>
+                        )}
                         <button onClick={() => setIsTeamManagerOpen(true)} className="px-2 py-1.5 bg-slate-800 rounded text-slate-300 border border-slate-700 text-[10px] font-bold">Teams</button>
                         <button onClick={() => setIsLineupManagerOpen(true)} className="px-2 py-1.5 bg-slate-800 rounded text-slate-300 border border-slate-700 text-[10px] font-bold">Lineups</button>
                     </div>
