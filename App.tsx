@@ -14,7 +14,8 @@ import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './compon
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
 import { saveData, loadData, subscribeToData, STORAGE_KEYS } from './services/storage';
-import { LogIn, LogOut, Cloud, CloudOff, CheckCircle2, Save } from 'lucide-react';
+import { LogIn, LogOut, Cloud, CloudOff, CheckCircle2, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 export default function App() {
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -123,7 +124,15 @@ export default function App() {
 
         // Subscribe to Rotations
         const unsubRotations = subscribeToData(user.uid, STORAGE_KEYS.ROTATIONS, (data) => {
-            if (data) setSavedRotations(data);
+            if (data) {
+                // Prevent infinite loop by only updating if actually different
+                setSavedRotations(prev => {
+                    if (JSON.stringify(prev) !== JSON.stringify(data)) {
+                        return data;
+                    }
+                    return prev;
+                });
+            }
         });
 
         // Subscribe to Teams
@@ -163,10 +172,15 @@ export default function App() {
 
 
 
-    // Auto-Save Rotations
+    // Auto-Save Rotations - RETIRED
+    // We now save manually in saveCurrentState to avoid effects loop.
+    // The previous effect [savedRotations] was causing:
+    // Local Update -> setSavedRotations -> Effect Save -> Cloud -> Listener -> setSavedRotations -> Effect Save (Loop)
+    /*
     useEffect(() => {
         saveRotations(savedRotations);
     }, [savedRotations]);
+    */
 
     // Interaction
     const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
@@ -380,31 +394,49 @@ export default function App() {
         return saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
     };
 
+    const saveRotationsDirectly = async (newRotations: Record<string, SavedRotationData>) => {
+        return saveData(user?.uid, STORAGE_KEYS.ROTATIONS, newRotations);
+    };
+
     const saveCurrentState = () => {
         if (!currentLineupId) return;
         const key = getStorageKey(currentRotation, currentPhase, gameMode);
+
+        // Clean undefineds to avoid sync mismatches
+        const cleanPositions = JSON.parse(JSON.stringify(playerPositions));
+        const cleanPaths = JSON.parse(JSON.stringify(paths));
+
         const newRotations = {
             ...savedRotations,
             [key]: {
-                positions: playerPositions,
-                paths: paths,
+                positions: cleanPositions,
+                paths: cleanPaths,
                 activePlayers: activePlayerIds,
                 notes: currentNotes
             }
         };
+
+        // Update local state
         setSavedRotations(newRotations);
+
         const updatedLineups = lineups.map(l => {
             if (l.id === currentLineupId) {
                 return { ...l, rotations: newRotations, roster: roster };
             }
             return l;
         });
+
         setSaveStatus('saving');
-        // We wrap in a promise-like structure to simulate async feedback for the UI, 
-        // though saveData itself is async, we want to know when it's done.
-        saveLineupsToStorage(updatedLineups)
+
+        // Save BOTH Lineups and Rotations directly here
+        // This replaces the dangerous useEffect on [savedRotations]
+        Promise.all([
+            saveLineupsToStorage(updatedLineups),
+            saveRotationsDirectly(newRotations)
+        ])
             .then(() => setTimeout(() => setSaveStatus('saved'), 500))
             .catch(() => setSaveStatus('error'));
+
         return newRotations;
     };
 
