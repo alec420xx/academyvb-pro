@@ -90,10 +90,21 @@ export default function App() {
 
         // Subscribe to Teams
         const unsubTeams = subscribeToData(user.uid, STORAGE_KEYS.TEAMS, (data) => {
-            if (data && Array.isArray(data)) {
+            if (!data || (Array.isArray(data) && data.length === 0)) {
+                // No teams found (or null)? Create default "My Team"
+                console.log("[Auto] Creating default 'My Team'...");
+                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
+                const newTeams = [defaultTeam];
+                saveData(user.uid, STORAGE_KEYS.TEAMS, newTeams);
+                // The save will trigger this callback again, setting state
+            } else if (Array.isArray(data)) {
                 setTeams(data);
-                if (data.length > 0 && !currentTeamId) {
+                if (!currentTeamId) {
                     setCurrentTeamId(data[0].id);
+                } else {
+                    // Ensure currentTeamId is still valid
+                    const exists = data.find(t => t.id === currentTeamId);
+                    if (!exists) setCurrentTeamId(data[0].id);
                 }
             }
         });

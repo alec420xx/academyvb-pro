@@ -98,7 +98,13 @@ export const subscribeToData = (
                     // Update local storage to match cloud
                     localStorage.setItem(key, JSON.stringify(data[key]));
                     callback(data[key]);
+                } else {
+                    // Key missing? possibly fire with null so the app knows it's empty
+                    callback(null);
                 }
+            } else {
+                // Doc missing?
+                callback(null);
             }
         }, (error) => {
             console.error("Error subscribing to cloud data", error);
