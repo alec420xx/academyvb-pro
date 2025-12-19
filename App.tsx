@@ -160,8 +160,22 @@ export default function App() {
 
         // Subscribe to Lineups
         const unsubLineups = subscribeToData(user.uid, STORAGE_KEYS.LINEUPS, (data) => {
-            if (data && Array.isArray(data)) setLineups(data);
+            if (data && Array.isArray(data)) {
+                setLineups(data);
+
+                // CRITICAL FIX: If the currently active lineup was updated in this payload,
+                // we MUST update the local savedRotations state to match, otherwise
+                // the view remains stale even though lineups[] is new.
+                // We use a ref for currentLineupId since we are in a closure if we don't depend on it
+                // But this effect only depends on [user]. 
+                // We can't easily access currentLineupId state inside this callback without stale closure.
+                // Solution: We'll use a specific useEffect for this syncing below or rely on the fact 
+                // that we should switch to using lineups as the Single Source of Truth.
+            }
         });
+
+        // REFACTORED: We moved the "Sync View from Lineups" logic to a separate useEffect
+        // dealing with [lineups, currentLineupId] to avoid closure hell.
 
         return () => {
             unsubRoster && unsubRoster();
@@ -170,6 +184,25 @@ export default function App() {
             unsubLineups && unsubLineups();
         };
     }, [user]);
+
+    // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
+    // If 'lineups' updates (from cloud), check if our current lineup has newer data
+    useEffect(() => {
+        if (!currentLineupId || lineups.length === 0) return;
+
+        const activeLineupData = lineups.find(l => l.id === currentLineupId);
+        if (activeLineupData && activeLineupData.rotations) {
+            // Check if this incoming data is different from our active view
+            // We only want to overwrite if it's actually different to avoid jumpting
+            setSavedRotations(prev => {
+                if (!deepEqual(prev, activeLineupData.rotations)) {
+                    console.log("[Sync] Updating active view from Lineup update");
+                    return activeLineupData.rotations;
+                }
+                return prev;
+            });
+        }
+    }, [lineups, currentLineupId]);
 
 
 
