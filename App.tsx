@@ -5,6 +5,9 @@ import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_C
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
 import { Court } from './components/Court';
 import { PlayerToken } from './components/PlayerToken';
+import { MobileControls } from './components/MobileControls';
+import { Sidebar } from './components/Sidebar';
+import { RosterView } from './components/RosterView';
 import { RotationSquare } from './components/RotationSquare';
 import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
@@ -545,22 +548,25 @@ export default function App() {
                 });
             }
 
-            if (mode === 'move' && draggedPlayer && !draggedPlayer.isBench) {
+            if (mode === 'move' && draggedPlayer) {
                 e.preventDefault();
-                let newX = cx;
-                let newY = cy;
 
-                // First, Hard Clamp to prevent off-screen (above/below court)
-                newY = Math.max(0, Math.min(100, newY));
-                newX = Math.max(0, Math.min(100, newX));
+                if (!draggedPlayer.isBench) {
+                    let newX = cx;
+                    let newY = cy;
 
-                if (shouldEnforceRules(currentPhase)) {
-                    const constraints = getConstraints(draggedPlayer.id);
-                    // Apply constraints, but respect the Hard Clamp we just did
-                    newX = Math.max(constraints.minX, Math.min(constraints.maxX, newX));
-                    newY = Math.max(constraints.minY, Math.min(constraints.maxY, newY));
+                    // First, Hard Clamp to prevent off-screen (above/below court)
+                    newY = Math.max(0, Math.min(100, newY));
+                    newX = Math.max(0, Math.min(100, newX));
+
+                    if (shouldEnforceRules(currentPhase)) {
+                        const constraints = getConstraints(draggedPlayer.id);
+                        // Apply constraints, but respect the Hard Clamp we just did
+                        newX = Math.max(constraints.minX, Math.min(constraints.maxX, newX));
+                        newY = Math.max(constraints.minY, Math.min(constraints.maxY, newY));
+                    }
+                    setPlayerPositions(prev => ({ ...prev, [draggedPlayer.id]: { x: newX, y: newY } }));
                 }
-                setPlayerPositions(prev => ({ ...prev, [draggedPlayer.id]: { x: newX, y: newY } }));
             }
             else if (isDrawing && currentPath) {
                 e.preventDefault(); // Stop scrolling while drawing
@@ -1194,56 +1200,23 @@ export default function App() {
                                 </div>
 
                                 {/* MOBILE & TABLET: CONTROL CENTER (Visible below lg screens) - order-4 */}
-                                <div className="lg:hidden w-full mt-4 space-y-4 order-4 pb-32">
-                                    <div>
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Rotation</div>
-                                        <div className="flex justify-between bg-slate-900 p-1 rounded-xl border border-slate-800">
-                                            {[1, 2, 3, 4, 5, 6].map(r => (
-                                                <button key={r} onClick={() => handleViewChange(r, currentPhase)} className={`w-10 h-10 rounded-lg font-black text-lg flex items-center justify-center ${currentRotation === r ? (gameMode === 'offense' ? 'bg-red-600 text-white shadow-lg' : 'bg-blue-600 text-white shadow-lg') : 'text-slate-500'}`}>{r}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Phase</div>
-                                            <div className="flex bg-slate-900 rounded-md p-0.5 border border-slate-800">
-                                                <button onClick={() => handleViewChange(currentRotation, 'receive1', 'offense')} className={`px-3 py-1 rounded text-[10px] font-bold ${gameMode === 'offense' ? 'bg-red-600 text-white' : 'text-slate-400'}`}>OFF</button>
-                                                <button onClick={() => handleViewChange(currentRotation, 'base', 'defense')} className={`px-3 py-1 rounded text-[10px] font-bold ${gameMode === 'defense' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>DEF</button>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {currentPhasesList.map(p => (
-                                                <button key={p.id} onClick={() => handleViewChange(currentRotation, p.id)} className={`py-2 rounded-lg text-[10px] font-bold uppercase ${currentPhase === p.id ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-slate-400 border border-slate-700'}`}>{p.label}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Phase Notes</div>
-                                        <textarea
-                                            value={currentNotes}
-                                            onChange={(e) => setCurrentNotes(e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white resize-none h-20 focus:outline-none focus:border-slate-400"
-                                            placeholder="Add notes..."
-                                        />
-                                    </div>
-                                </div>
+                                <MobileControls
+                                    currentRotation={currentRotation}
+                                    handleViewChange={handleViewChange}
+                                    currentPhase={currentPhase}
+                                    gameMode={gameMode}
+                                    currentPhasesList={currentPhasesList}
+                                    currentNotes={currentNotes}
+                                    setCurrentNotes={setCurrentNotes}
+                                />
                             </div>
 
                             {/* Sidebar Bench (Desktop) */}
-                            <div className="hidden lg:block lg:col-span-3 space-y-4">
-                                <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 h-full">
-                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Bench</h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {roster.filter(p => !activePlayerIds.includes(p.id)).map(player => (
-                                            <div key={player.id} className="relative flex flex-col items-center p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-red-500 cursor-grab active:cursor-grabbing group transition-all" onMouseDown={(e) => handleTokenDown(e, player.id, true)} onTouchStart={(e) => handleTokenDown(e, player.id, true)}>
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 shadow-sm ${getRoleColor(player.role)}`}>{player.number}</div>
-                                                <div className="text-xs font-bold text-slate-300">{player.name}</div>
-                                                <div className="text-[10px] font-bold text-slate-500 uppercase">{player.role}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            <Sidebar
+                                roster={roster}
+                                activePlayerIds={activePlayerIds}
+                                handleTokenDown={handleTokenDown}
+                            />
                         </div>
                     </div>
                 )}
@@ -1475,33 +1448,14 @@ export default function App() {
 
                 {/* --- ROSTER VIEW --- */}
                 {
-                    activeTab === 'roster' && (
-                        <div className="max-w-4xl mx-auto bg-slate-800 md:rounded-2xl shadow-xl border-y md:border border-slate-700 overflow-hidden mb-40">
-                            <div className="p-4 md:p-6 border-b border-slate-700 flex flex-row justify-between items-center bg-slate-900/50 gap-4">
-                                <h2 className="text-lg md:text-xl font-bold text-white">Roster</h2>
-                                <button onClick={() => setRoster(prev => [...prev, { id: generateId('p'), role: 'DS', name: 'New', number: '' }])} className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm font-bold hover:bg-red-500 transition-colors"><UserPlus size={16} /> Add</button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 md:p-6">
-                                {roster.map((player, idx) => (
-                                    <div key={player.id} className="p-3 md:p-4 border border-slate-700 bg-slate-900 rounded-xl relative group hover:border-red-500 transition-colors">
-                                        <div className="flex items-center justify-between mb-3 md:mb-4">
-                                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{idx < 6 ? `Starter ${idx + 1}` : 'Bench'}</div>
-                                            {roster.length > 6 && <button onClick={() => setRoster(prev => prev.filter(p => p.id !== player.id))} className="text-slate-500 hover:text-rose-500 transition-colors"><Trash2 size={14} /></button>}
-                                        </div>
-                                        <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-black text-lg ${getRoleColor(player.role)}`}>{player.number || '#'}</div>
-                                            <div className="flex-1"><input type="text" value={player.name} onChange={(e) => updateRoster(idx, 'name', e.target.value)} className="w-full bg-transparent font-bold text-white border-b border-slate-700 focus:border-red-500 focus:outline-none py-1 text-sm md:text-base" placeholder="Name" /></div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Role</label><select value={player.role} onChange={(e) => updateRoster(idx, 'role', e.target.value as any)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-red-500">{["S", "OH1", "OH2", "M1", "M2", "OPP", "L", "DS", "OH", "M"].map(r => <option key={r} value={r}>{r}</option>)}</select></div>
-                                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Num/Init</label><input type="text" value={player.number} onChange={(e) => updateRoster(idx, 'number', e.target.value)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-center text-white focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="#" /></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                }
+                    { activeTab === 'roster' && (
+                        <RosterView
+                            roster={roster}
+                            setRoster={setRoster}
+                            updateRoster={updateRoster}
+                        />
+                    )}
+
             </main >
 
             {/* --- MOBILE BOTTOM NAVIGATION --- */}
