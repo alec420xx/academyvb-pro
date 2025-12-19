@@ -1227,7 +1227,9 @@ export default function App() {
 
                         {/* AUTH ACTIONS */}
                         {user ? (
-                            <div className="flex items-center gap-3 pl-3 border-l border-slate-800">2 mr-2 bg-slate-800 rounded-lg p-1 pr-3 border border-slate-700">
+                            {/* AUTH ACTIONS */ }
+                        {user ? (
+                            <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
                                 {user.photoURL ? (
                                     <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-md" />
                                 ) : (
