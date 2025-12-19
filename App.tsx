@@ -1447,14 +1447,13 @@ export default function App() {
                 </div >
 
                 {/* --- ROSTER VIEW --- */}
-                {
-                    { activeTab === 'roster' && (
-                        <RosterView
-                            roster={roster}
-                            setRoster={setRoster}
-                            updateRoster={updateRoster}
-                        />
-                    )}
+                {activeTab === 'roster' && (
+                    <RosterView
+                        roster={roster}
+                        setRoster={setRoster}
+                        updateRoster={updateRoster}
+                    />
+                )}
 
             </main >
 
