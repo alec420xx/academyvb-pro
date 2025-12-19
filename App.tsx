@@ -1365,6 +1365,37 @@ export default function App() {
                                     </div>
                                 </div>
 
+
+
+                                {/* NEW: Mobile Phase Selection for Report */}
+                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Include in Report</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {currentPhasesList.map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => {
+                                                    setVisiblePhasesMap(prev => {
+                                                        const currentList = prev[gameMode];
+                                                        let newList;
+                                                        if (currentList.includes(p.id)) {
+                                                            const filtered = currentList.filter(id => id !== p.id);
+                                                            newList = filtered.length ? filtered : [p.id];
+                                                        } else {
+                                                            newList = [...currentList, p.id];
+                                                        }
+                                                        return { ...prev, [gameMode]: newList };
+                                                    });
+                                                }}
+                                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${printViewVisiblePhases.includes(p.id) ? 'bg-slate-700 text-white border border-slate-500 shadow-md' : 'bg-slate-950 text-slate-600 border border-slate-900'}`}
+                                            >
+                                                <div className={`w-2 h-2 rounded-full ${printViewVisiblePhases.includes(p.id) ? 'bg-emerald-400' : 'bg-slate-800'}`} />
+                                                {p.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Mobile Rotation Selector (Existing Preview) */}
                                 <div>
                                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-1">Preview Rotation</div>
@@ -1414,6 +1445,15 @@ export default function App() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Mobile Actions */}
+                            <button
+                                onClick={() => handleExport('full-report-grid', `Start_Rot_${printViewStartRotation}_${gameMode.toUpperCase()}_Plan`)}
+                                className="w-full bg-slate-100 hover:bg-white text-slate-900 px-4 py-4 rounded-xl font-black text-lg shadow-lg flex items-center justify-center gap-2 mt-4"
+                            >
+                                <Download size={20} />
+                                <span>Download PDF / Image</span>
+                            </button>
                         </div>
 
                         {/* HIDDEN EXPORT CANVAS */}
@@ -1438,61 +1478,65 @@ export default function App() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* --- ROSTER VIEW --- */}
-                {activeTab === 'roster' && (
-                    <div className="max-w-4xl mx-auto bg-slate-800 md:rounded-2xl shadow-xl border-y md:border border-slate-700 overflow-hidden mb-40">
-                        <div className="p-4 md:p-6 border-b border-slate-700 flex flex-row justify-between items-center bg-slate-900/50 gap-4">
-                            <h2 className="text-lg md:text-xl font-bold text-white">Roster</h2>
-                            <button onClick={() => setRoster(prev => [...prev, { id: generateId('p'), role: 'DS', name: 'New', number: '' }])} className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm font-bold hover:bg-red-500 transition-colors"><UserPlus size={16} /> Add</button>
+                {
+                    activeTab === 'roster' && (
+                        <div className="max-w-4xl mx-auto bg-slate-800 md:rounded-2xl shadow-xl border-y md:border border-slate-700 overflow-hidden mb-40">
+                            <div className="p-4 md:p-6 border-b border-slate-700 flex flex-row justify-between items-center bg-slate-900/50 gap-4">
+                                <h2 className="text-lg md:text-xl font-bold text-white">Roster</h2>
+                                <button onClick={() => setRoster(prev => [...prev, { id: generateId('p'), role: 'DS', name: 'New', number: '' }])} className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm font-bold hover:bg-red-500 transition-colors"><UserPlus size={16} /> Add</button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 md:p-6">
+                                {roster.map((player, idx) => (
+                                    <div key={player.id} className="p-3 md:p-4 border border-slate-700 bg-slate-900 rounded-xl relative group hover:border-red-500 transition-colors">
+                                        <div className="flex items-center justify-between mb-3 md:mb-4">
+                                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{idx < 6 ? `Starter ${idx + 1}` : 'Bench'}</div>
+                                            {roster.length > 6 && <button onClick={() => setRoster(prev => prev.filter(p => p.id !== player.id))} className="text-slate-500 hover:text-rose-500 transition-colors"><Trash2 size={14} /></button>}
+                                        </div>
+                                        <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
+                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-black text-lg ${getRoleColor(player.role)}`}>{player.number || '#'}</div>
+                                            <div className="flex-1"><input type="text" value={player.name} onChange={(e) => updateRoster(idx, 'name', e.target.value)} className="w-full bg-transparent font-bold text-white border-b border-slate-700 focus:border-red-500 focus:outline-none py-1 text-sm md:text-base" placeholder="Name" /></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 md:gap-3">
+                                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Role</label><select value={player.role} onChange={(e) => updateRoster(idx, 'role', e.target.value as any)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-red-500">{["S", "OH1", "OH2", "M1", "M2", "OPP", "L", "DS", "OH", "M"].map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Num/Init</label><input type="text" value={player.number} onChange={(e) => updateRoster(idx, 'number', e.target.value)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-center text-white focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="#" /></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 md:p-6">
-                            {roster.map((player, idx) => (
-                                <div key={player.id} className="p-3 md:p-4 border border-slate-700 bg-slate-900 rounded-xl relative group hover:border-red-500 transition-colors">
-                                    <div className="flex items-center justify-between mb-3 md:mb-4">
-                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{idx < 6 ? `Starter ${idx + 1}` : 'Bench'}</div>
-                                        {roster.length > 6 && <button onClick={() => setRoster(prev => prev.filter(p => p.id !== player.id))} className="text-slate-500 hover:text-rose-500 transition-colors"><Trash2 size={14} /></button>}
-                                    </div>
-                                    <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-                                        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-black text-lg ${getRoleColor(player.role)}`}>{player.number || '#'}</div>
-                                        <div className="flex-1"><input type="text" value={player.name} onChange={(e) => updateRoster(idx, 'name', e.target.value)} className="w-full bg-transparent font-bold text-white border-b border-slate-700 focus:border-red-500 focus:outline-none py-1 text-sm md:text-base" placeholder="Name" /></div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 md:gap-3">
-                                        <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Role</label><select value={player.role} onChange={(e) => updateRoster(idx, 'role', e.target.value as any)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-red-500">{["S", "OH1", "OH2", "M1", "M2", "OPP", "L", "DS", "OH", "M"].map(r => <option key={r} value={r}>{r}</option>)}</select></div>
-                                        <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Num/Init</label><input type="text" value={player.number} onChange={(e) => updateRoster(idx, 'number', e.target.value)} className="w-full p-1.5 md:p-2 bg-slate-800 border border-slate-600 rounded-lg text-xs text-center text-white focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="#" /></div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </main>
+                    )
+                }
+            </main >
 
             {/* --- MOBILE BOTTOM NAVIGATION --- */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe z-50">
+            < div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe z-50" >
                 <div className="flex justify-around items-center h-16">
                     <button onClick={() => setActiveTab('roster')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'roster' ? 'text-red-500' : 'text-slate-500'}`}><Users size={20} className={activeTab === 'roster' ? 'fill-current' : ''} /><span className="text-[10px] font-bold mt-1">Roster</span></button>
                     <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'board' ? 'text-red-500' : 'text-slate-500'}`}><CourtIcon size={20} /><span className="text-[10px] font-bold mt-1">Court</span></button>
                     <button onClick={() => { setActiveTab('export'); saveCurrentState(); }} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'export' ? 'text-red-500' : 'text-slate-500'}`}><Trophy size={20} /><span className="text-[10px] font-bold mt-1">Plan</span></button>
                 </div>
-            </div>
+            </div >
             {/* Ghost Player Token for Dragging */}
-            {draggedPlayer && (
-                <PlayerToken
-                    player={roster.find(p => p.id === draggedPlayer.id) || DEFAULT_ROSTER[0]}
-                    style={{
-                        position: 'fixed',
-                        left: mousePos.x,
-                        top: mousePos.y,
-                        transform: 'translate(-50%, -50%)',
-                        pointerEvents: 'none',
-                        zIndex: 9999
-                    }}
-                    isDragging={true}
-                    small={false}
-                />
-            )}
-        </div>
+            {
+                draggedPlayer && (
+                    <PlayerToken
+                        player={roster.find(p => p.id === draggedPlayer.id) || DEFAULT_ROSTER[0]}
+                        style={{
+                            position: 'fixed',
+                            left: mousePos.x,
+                            top: mousePos.y,
+                            transform: 'translate(-50%, -50%)',
+                            pointerEvents: 'none',
+                            zIndex: 9999
+                        }}
+                        isDragging={true}
+                        small={false}
+                    />
+                )
+            }
+        </div >
     );
 }
