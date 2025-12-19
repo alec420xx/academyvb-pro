@@ -124,7 +124,11 @@ export default function App() {
             if (data) setRoster(data);
         });
 
-        // Subscribe to Rotations
+        // Subscribe to Rotations - DEPRECATED/REMOVED
+        // We now rely solely on 'unsubLineups' to be the Single Source of Truth.
+        // This avoids race conditions where 'ROTATIONS' key might be stale or newer than 'LINEUPS'.
+
+        /*
         const unsubRotations = subscribeToData(user.uid, STORAGE_KEYS.ROTATIONS, (data) => {
             if (data) {
                 // Prevent infinite loop by only updating if actually different
@@ -136,6 +140,7 @@ export default function App() {
                 });
             }
         });
+        */
 
         // Subscribe to Teams
         const unsubTeams = subscribeToData(user.uid, STORAGE_KEYS.TEAMS, (data) => {
@@ -178,7 +183,7 @@ export default function App() {
 
         return () => {
             unsubRoster && unsubRoster();
-            unsubRotations && unsubRotations();
+            // unsubRotations && unsubRotations(); 
             unsubTeams && unsubTeams();
             unsubLineups && unsubLineups();
         };
@@ -445,9 +450,12 @@ export default function App() {
         return saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
     };
 
+    // DEPRECATED
+    /*
     const saveRotationsDirectly = async (newRotations: Record<string, SavedRotationData>) => {
         return saveData(user?.uid, STORAGE_KEYS.ROTATIONS, newRotations);
     };
+    */
 
     const saveCurrentState = () => {
         if (!currentLineupId) return;
@@ -479,12 +487,8 @@ export default function App() {
 
         setSaveStatus('saving');
 
-        // Save BOTH Lineups and Rotations directly here
-        // This replaces the dangerous useEffect on [savedRotations]
-        Promise.all([
-            saveLineupsToStorage(updatedLineups),
-            saveRotationsDirectly(newRotations)
-        ])
+        // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH
+        saveLineupsToStorage(updatedLineups)
             .then(() => setTimeout(() => setSaveStatus('saved'), 500))
             .catch(() => setSaveStatus('error'));
 
