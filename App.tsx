@@ -14,7 +14,7 @@ import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './compon
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
 import { saveData, loadData, subscribeToData, STORAGE_KEYS } from './services/storage';
-import { LogIn, LogOut, Cloud, CloudOff } from 'lucide-react';
+import { LogIn, LogOut, Cloud, CloudOff, CheckCircle2, Save } from 'lucide-react';
 
 export default function App() {
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -42,6 +42,9 @@ export default function App() {
     const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
     const [lineups, setLineups] = useState<Lineup[]>([]);
     const [currentLineupId, setCurrentLineupId] = useState<string | null>(null);
+
+    // --- SAVE STATUS STATE ---
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
 
     // --- UI STATE ---
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
@@ -372,9 +375,9 @@ export default function App() {
         saveData(user?.uid, STORAGE_KEYS.TEAMS, newTeams);
     };
 
-    const saveLineupsToStorage = (newLineups: Lineup[]) => {
+    const saveLineupsToStorage = async (newLineups: Lineup[]) => {
         setLineups(newLineups);
-        saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
+        return saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
     };
 
     const saveCurrentState = () => {
@@ -396,9 +399,15 @@ export default function App() {
             }
             return l;
         });
-        saveLineupsToStorage(updatedLineups);
+        setSaveStatus('saving');
+        // We wrap in a promise-like structure to simulate async feedback for the UI, 
+        // though saveData itself is async, we want to know when it's done.
+        saveLineupsToStorage(updatedLineups)
+            .then(() => setTimeout(() => setSaveStatus('saved'), 500))
+            .catch(() => setSaveStatus('error'));
         return newRotations;
     };
+
 
     useEffect(() => {
         if (!currentLineupId) return;
@@ -1183,11 +1192,42 @@ export default function App() {
                         </div>
                     </div>
 
-                    {/* RIGHT: ACTIONS */}
-                    <div className="flex-1 flex justify-end items-center gap-2">
-                        {/* AUTH BUTTON */}
+                    {/* CENTER: SAVE STATUS & ACTIONS */}
+                    <div className="flex items-center gap-3">
+                        {/* SAVE STATUS INDICATOR */}
+                        <div className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700">
+                            {saveStatus === 'saving' && (
+                                <>
+                                    <Loader2 size={12} className="animate-spin text-blue-400" />
+                                    <span className="text-blue-400">Saving...</span>
+                                </>
+                            )}
+                            {saveStatus === 'saved' && (
+                                <>
+                                    <CheckCircle2 size={12} className="text-green-500" />
+                                    <span className="text-green-500">Saved</span>
+                                </>
+                            )}
+                            {saveStatus === 'error' && (
+                                <>
+                                    <AlertTriangle size={12} className="text-red-500" />
+                                    <span className="text-red-500">Error</span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* MANUAL SAVE BUTTON */}
+                        <button
+                            onClick={() => saveCurrentState()}
+                            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-xs font-bold transition-colors shadow-sm"
+                        >
+                            <Save size={12} />
+                            Save Now
+                        </button>
+
+                        {/* AUTH ACTIONS */}
                         {user ? (
-                            <div className="flex items-center gap-2 mr-2 bg-slate-800 rounded-lg p-1 pr-3 border border-slate-700">
+                            <div className="flex items-center gap-3 pl-3 border-l border-slate-800">2 mr-2 bg-slate-800 rounded-lg p-1 pr-3 border border-slate-700">
                                 {user.photoURL ? (
                                     <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-md" />
                                 ) : (
