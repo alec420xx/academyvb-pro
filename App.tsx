@@ -301,15 +301,28 @@ export default function App() {
     }, [user]);
 
     // Ensure active lineup is selected when team changes or lineups load
+    // Ensure active lineup is selected when team changes or lineups load
     useEffect(() => {
-        if (currentTeamId && lineups.length > 0) {
-            const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
-            if (teamLineups.length > 0) {
-                // If no current lineup, or current lineup belongs to another team, select the first one of THIS team
-                const belongsToTeam = currentLineupId && teamLineups.find(l => l.id === currentLineupId);
-                if (!currentLineupId || !belongsToTeam) {
-                    loadLineup(teamLineups[0].id, lineups);
-                }
+        if (!currentTeamId) return;
+
+        const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
+
+        if (teamLineups.length > 0) {
+            // If no current lineup, or current lineup belongs to another team, select the first one of THIS team
+            const belongsToTeam = currentLineupId && teamLineups.find(l => l.id === currentLineupId);
+            if (!currentLineupId || !belongsToTeam) {
+                loadLineup(teamLineups[0].id, lineups);
+            }
+        } else {
+            // No lineups for this team? Auto-create "Lineup 1"
+            // We need to fetch the team roster to use for the lineup.
+            const currentTeam = teams.find(t => t.id === currentTeamId);
+            if (currentTeam) {
+                console.log("[Auto] Creating default 'Lineup 1' for team", currentTeam.name);
+                // Directly calling createLineup might be risky if dependencies aren't perfect, 
+                // but createLineup uses currentTeamId and lineups from closure.
+                // Better to call it safely.
+                createLineup('Lineup 1', currentTeam.roster, currentTeamId, lineups);
             }
         }
     }, [currentTeamId, lineups]);
