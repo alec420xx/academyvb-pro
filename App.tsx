@@ -13,7 +13,7 @@ import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
-import { saveData, loadData, STORAGE_KEYS } from './services/storage';
+import { saveData, loadData, subscribeToData, STORAGE_KEYS } from './services/storage';
 import { LogIn, LogOut, Cloud, CloudOff } from 'lucide-react';
 
 export default function App() {
@@ -49,6 +49,9 @@ export default function App() {
     const [newItemName, setNewItemName] = useState('');
     const [editId, setEditId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
+    const [isEditingHeaderTeam, setIsEditingHeaderTeam] = useState(false);
+    const [isEditingHeaderLineup, setIsEditingHeaderLineup] = useState(false);
+
 
     // --- WORKING MEMORY (Active Lineup) ---
     // --- WORKING MEMORY (Active Lineup) ---
@@ -65,17 +68,48 @@ export default function App() {
     const [future, setFuture] = useState<any[]>([]); // Redo stack
 
     // Load Data on Mount (Cloud -> Local)
+    // Load Data on Mount (Cloud -> Local) with REAL-TIME SYNC
     useEffect(() => {
+        // Initial static load to populate state quickly (local first)
         loadInitialData().then(data => {
             if (data.roster) setRoster(data.roster);
-            if (data.rotations) {
-                setSavedRotations(data.rotations);
-                // Determine initial positions after load
-                // (This logic mimics the old behavior but waits for data)
-                // We will let the existing rotation-change logic handle this if we set state
+            if (data.rotations) setSavedRotations(data.rotations);
+        });
+
+        if (!user) return;
+
+        // Subscribe to Roster
+        const unsubRoster = subscribeToData(user.uid, STORAGE_KEYS.ROSTER, (data) => {
+            if (data) setRoster(data);
+        });
+
+        // Subscribe to Rotations
+        const unsubRotations = subscribeToData(user.uid, STORAGE_KEYS.ROTATIONS, (data) => {
+            if (data) setSavedRotations(data);
+        });
+
+        // Subscribe to Teams
+        const unsubTeams = subscribeToData(user.uid, STORAGE_KEYS.TEAMS, (data) => {
+            if (data && Array.isArray(data)) {
+                setTeams(data);
+                if (data.length > 0 && !currentTeamId) {
+                    setCurrentTeamId(data[0].id);
+                }
             }
         });
-    }, [user]); // Reload if user changes
+
+        // Subscribe to Lineups
+        const unsubLineups = subscribeToData(user.uid, STORAGE_KEYS.LINEUPS, (data) => {
+            if (data && Array.isArray(data)) setLineups(data);
+        });
+
+        return () => {
+            unsubRoster && unsubRoster();
+            unsubRotations && unsubRotations();
+            unsubTeams && unsubTeams();
+            unsubLineups && unsubLineups();
+        };
+    }, [user]);
 
     // Auto-Save Roster
     useEffect(() => {
@@ -242,37 +276,30 @@ export default function App() {
     };
 
     // --- LOCAL STORAGE & CLOUD SYNC ---
+    // --- LOCAL STORAGE & CLOUD SYNC ---
     useEffect(() => {
         migrateStorage();
 
+        // Initial Load for offline/first render support
         const load = async () => {
-            const loadedTeams = await loadData(user?.uid, STORAGE_KEYS.TEAMS) || [];
-            const loadedLineups = await loadData(user?.uid, STORAGE_KEYS.LINEUPS) || [];
-
-            if (loadedTeams.length === 0) {
-                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                setTeams([defaultTeam]);
-                setCurrentTeamId(defaultTeam.id);
-                saveData(user?.uid, STORAGE_KEYS.TEAMS, [defaultTeam]);
-            } else {
-                setTeams(loadedTeams);
-                setCurrentTeamId(loadedTeams[0].id);
-            }
-            setLineups(loadedLineups);
+            // We still do one initial load check for safety/offline
+            // but the subscription above handles the live updates
+            // so we don't need to be too aggressive here.
         };
         load();
     }, [user]);
 
+    // Ensure active lineup is selected when team changes or lineups load
     useEffect(() => {
         if (currentTeamId && lineups.length > 0) {
             const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
-            if (teamLineups.length > 0 && (!currentLineupId || !teamLineups.find(l => l.id === currentLineupId))) {
-                loadLineup(teamLineups[0].id, lineups);
-            } else if (teamLineups.length === 0) {
-                createLineup('Lineup 1', teams.find(t => t.id === currentTeamId)?.roster || DEFAULT_ROSTER, currentTeamId, lineups);
+            if (teamLineups.length > 0) {
+                // If no current lineup, or current lineup belongs to another team, select the first one of THIS team
+                const belongsToTeam = currentLineupId && teamLineups.find(l => l.id === currentLineupId);
+                if (!currentLineupId || !belongsToTeam) {
+                    loadLineup(teamLineups[0].id, lineups);
+                }
             }
-        } else if (currentTeamId && lineups.length === 0) {
-            createLineup('Lineup 1', teams.find(t => t.id === currentTeamId)?.roster || DEFAULT_ROSTER, currentTeamId, []);
         }
     }, [currentTeamId, lineups]);
 
@@ -365,6 +392,13 @@ export default function App() {
     const renameTeam = (id: string, newName: string) => {
         const newTeams = teams.map(t => t.id === id ? { ...t, name: newName } : t);
         saveTeamsToStorage(newTeams);
+        setEditId(null);
+    };
+
+    const renameLineup = (id: string, newName: string) => {
+        const newLineups = lineups.map(l => l.id === id ? { ...l, name: newName } : l);
+        setLineups(newLineups);
+        saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
         setEditId(null);
     };
 
@@ -985,11 +1019,63 @@ export default function App() {
                     <div className="flex-1 flex justify-start items-center gap-2 lg:gap-3">
                         <div className="bg-black p-2 rounded-lg text-red-600"><ClubLogo size={24} /></div>
                         <div>
-                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.1</span></h1>
-                            <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[120px] lg:max-w-none truncate">
-                                <span className="font-bold text-white cursor-pointer hover:text-blue-400 truncate" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</span>
+                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.3</span></h1>
+                            <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[400px]">
+                                {isEditingHeaderTeam ? (
+                                    <input
+                                        className="bg-slate-800 border border-blue-500 rounded px-1 py-0.5 text-white font-bold w-[120px] outline-none"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        onBlur={() => {
+                                            if (currentTeamId) renameTeam(currentTeamId, editName);
+                                            setIsEditingHeaderTeam(false);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && currentTeamId) {
+                                                renameTeam(currentTeamId, editName);
+                                                setIsEditingHeaderTeam(false);
+                                            }
+                                        }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div className="flex items-center gap-1 group cursor-pointer" onClick={() => {
+                                        const t = teams.find(t => t.id === currentTeamId);
+                                        if (t) { setEditName(t.name); setIsEditingHeaderTeam(true); }
+                                    }}>
+                                        <span className="font-bold text-white group-hover:text-blue-400 max-w-[150px] truncate">{teams.find(t => t.id === currentTeamId)?.name}</span>
+                                        <Pencil size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                )}
+
                                 <ChevronRight size={10} />
-                                <span className="font-bold text-slate-300 truncate">{lineups.find(l => l.id === currentLineupId)?.name || 'Untitled'}</span>
+
+                                {isEditingHeaderLineup ? (
+                                    <input
+                                        className="bg-slate-800 border border-red-500 rounded px-1 py-0.5 text-white font-bold w-[120px] outline-none"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        onBlur={() => {
+                                            if (currentLineupId) renameLineup(currentLineupId, editName);
+                                            setIsEditingHeaderLineup(false);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && currentLineupId) {
+                                                renameLineup(currentLineupId, editName);
+                                                setIsEditingHeaderLineup(false);
+                                            }
+                                        }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div className="flex items-center gap-1 group cursor-pointer" onClick={() => {
+                                        const l = lineups.find(l => l.id === currentLineupId);
+                                        if (l) { setEditName(l.name); setIsEditingHeaderLineup(true); }
+                                    }}>
+                                        <span className="font-bold text-slate-300 group-hover:text-red-400 max-w-[150px] truncate">{lineups.find(l => l.id === currentLineupId)?.name || 'Untitled'}</span>
+                                        <Pencil size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1050,8 +1136,12 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     <div className="bg-black p-1.5 rounded-md text-red-600"><ClubLogo size={18} /></div>
                     <div className="leading-none">
-                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.1</span></div>
-                        <div className="text-[10px] text-slate-400 font-bold truncate max-w-[120px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
+                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.3</span></div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <div className="text-[10px] text-slate-400 font-bold truncate max-w-[100px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
+                            <span className="text-[8px] text-slate-600">/</span>
+                            <div className="text-[10px] text-red-500 font-bold truncate max-w-[100px]" onClick={() => setIsLineupManagerOpen(true)}>{lineups.find(l => l.id === currentLineupId)?.name || 'Lineup'}</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1129,10 +1219,22 @@ export default function App() {
                         <div className="p-4 overflow-y-auto flex-1 space-y-2 max-h-[50vh]">
                             {lineups.filter(l => l.teamId === currentTeamId).map(l => (
                                 <div key={l.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${currentLineupId === l.id ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
-                                    <button onClick={() => loadLineup(l.id)} className="flex-1 text-left font-bold text-sm text-slate-200">{l.name}</button>
+                                    {editId === l.id ? (
+                                        <input
+                                            className="bg-slate-900 border border-blue-500 rounded px-2 py-1 text-sm text-white flex-1 mr-2"
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            onBlur={() => renameLineup(l.id, editName)}
+                                            onKeyDown={(e) => e.key === 'Enter' && renameLineup(l.id, editName)}
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <button onClick={() => loadLineup(l.id)} className="flex-1 text-left font-bold text-sm text-slate-200">{l.name}</button>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         {currentLineupId === l.id && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">ACTIVE</span>}
-                                        <button onClick={(e) => { e.stopPropagation(); deleteLineup(l.id); }} className="p-2 text-slate-500 hover:text-red-500"><Trash2 size={14} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setEditId(l.id); setEditName(l.name); }} className="p-3 text-slate-500 hover:text-blue-400 bg-slate-900/50 rounded-lg ml-1"><Pencil size={18} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteLineup(l.id); }} className="p-3 text-slate-500 hover:text-red-500 bg-slate-900/50 rounded-lg"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
                             ))}

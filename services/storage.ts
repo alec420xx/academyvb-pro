@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Player, SavedRotationData } from '../types';
 
@@ -76,4 +76,36 @@ export const loadData = async (
         }
     }
     return null;
+};
+
+/**
+ * Subscribes to real-time updates from Cloud.
+ */
+export const subscribeToData = (
+    userId: string | undefined | null,
+    key: string,
+    callback: (data: any) => void
+) => {
+    if (!userId) return () => { };
+
+    try {
+        const userRef = doc(db, 'users', userId);
+        const unsubscribe = onSnapshot(userRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                if (data && data[key]) {
+                    console.log(`[Cloud] Received Update for ${key}`);
+                    // Update local storage to match cloud
+                    localStorage.setItem(key, JSON.stringify(data[key]));
+                    callback(data[key]);
+                }
+            }
+        }, (error) => {
+            console.error("Error subscribing to cloud data", error);
+        });
+        return unsubscribe;
+    } catch (e) {
+        console.error("Error setting up subscription", e);
+        return () => { };
+    }
 };
