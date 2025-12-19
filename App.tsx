@@ -730,9 +730,19 @@ export default function App() {
         const cy = ((y - rect.top) / rect.height) * 100;
 
         if (mode === 'move') {
-            let hit = hoveredElement;
+            // FIX: Always perform hit test on touch/click to check for UI buttons (move/delete)
+            // or new shape selections. Don't rely on 'hoveredElement' state alone.
+            let hit = performHitTest(cx, cy, rect.width, rect.height);
+
+            // If no immediate hit, but we have a hover element, we might be clicking "off" it
+            // checking specifically for UI proximity or button clicks was done by performHitTest
+            // utilizing the current hoveredElement state internally.
+
             if (!hit && e.type === 'touchstart') {
-                hit = performHitTest(cx, cy, rect.width, rect.height);
+                // If we missed everything, clear selection
+                setHoveredElement(null);
+            } else if (e.type === 'touchstart') {
+                // Update hover on touch
                 setHoveredElement(hit);
             }
 
@@ -1467,6 +1477,22 @@ export default function App() {
                     <button onClick={() => { setActiveTab('export'); saveCurrentState(); }} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'export' ? 'text-red-500' : 'text-slate-500'}`}><Trophy size={20} /><span className="text-[10px] font-bold mt-1">Plan</span></button>
                 </div>
             </div>
+            {/* Ghost Player Token for Dragging */}
+            {draggedPlayer && (
+                <PlayerToken
+                    player={roster.find(p => p.id === draggedPlayer.id) || DEFAULT_ROSTER[0]}
+                    style={{
+                        position: 'fixed',
+                        left: mousePos.x,
+                        top: mousePos.y,
+                        transform: 'translate(-50%, -50%)',
+                        pointerEvents: 'none',
+                        zIndex: 9999
+                    }}
+                    isDragging={true}
+                    small={false}
+                />
+            )}
         </div>
     );
 }
