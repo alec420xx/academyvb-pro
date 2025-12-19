@@ -1423,6 +1423,13 @@ export default function App() {
                                 <div className="w-full flex flex-wrap gap-2 justify-between items-center mb-4 lg:mb-6 mt-4 lg:mt-0 px-1 relative z-0 order-2 lg:order-1">
                                     {/* Left Side: Camera, Undo/Redo, Tools */}
                                     <div className="flex items-center gap-2">
+                                        {/* MOBILE SAVE STATUS (Visible only on mobile/tablet) */}
+                                        <div className="lg:hidden flex items-center mr-2">
+                                            {saveStatus === 'saving' && <Loader2 size={16} className="animate-spin text-blue-400" />}
+                                            {saveStatus === 'saved' && <CheckCircle2 size={16} className="text-green-500" />}
+                                            {saveStatus === 'error' && <AlertTriangle size={16} className="text-red-500" />}
+                                        </div>
+
                                         <button onClick={() => handleExport('court-capture-area', `Rotation-${currentRotation}-${currentPhase}`)} disabled={isExporting} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm">
                                             {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
                                         </button>
