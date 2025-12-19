@@ -148,13 +148,12 @@ export default function App() {
                 // The save will trigger this callback again, setting state
             } else if (Array.isArray(data)) {
                 setTeams(data);
-                if (!currentTeamId) {
-                    setCurrentTeamId(data[0].id);
-                } else {
-                    // Ensure currentTeamId is still valid
-                    const exists = data.find(t => t.id === currentTeamId);
-                    if (!exists) setCurrentTeamId(data[0].id);
-                }
+
+                // CRITICAL FIX: Sync active roster if the current team was updated remotely
+                // We use a functional update or refer to a ref if needed, but here we can just checks
+                // We need to find the current active team in the new data
+                // To avoid closure staleness on 'currentTeamId', we might need to handle this in a separate effect
+                // mimicking the 'unsubLineups' fix.
             }
         });
 
@@ -187,13 +186,13 @@ export default function App() {
 
     // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
     // If 'lineups' updates (from cloud), check if our current lineup has newer data
+    // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
+    // If 'lineups' updates (from cloud), check if our current lineup has newer data
     useEffect(() => {
         if (!currentLineupId || lineups.length === 0) return;
 
         const activeLineupData = lineups.find(l => l.id === currentLineupId);
         if (activeLineupData && activeLineupData.rotations) {
-            // Check if this incoming data is different from our active view
-            // We only want to overwrite if it's actually different to avoid jumpting
             setSavedRotations(prev => {
                 if (!deepEqual(prev, activeLineupData.rotations)) {
                     console.log("[Sync] Updating active view from Lineup update");
@@ -203,6 +202,23 @@ export default function App() {
             });
         }
     }, [lineups, currentLineupId]);
+
+    // --- SYNC ROSTER WITH LATEST TEAM DATA ---
+    // If 'teams' updates (from cloud), check if our active team's roster has changed
+    useEffect(() => {
+        if (!currentTeamId || teams.length === 0) return;
+
+        const activeTeamData = teams.find(t => t.id === currentTeamId);
+        if (activeTeamData && activeTeamData.roster) {
+            if (!deepEqual(roster, activeTeamData.roster)) {
+                console.log("[Sync] Updating roster from Team update");
+                setRoster(activeTeamData.roster);
+            }
+        } else if (!activeTeamData && currentTeamId) {
+            // Current team deleted? Switch to first one
+            if (teams.length > 0) setCurrentTeamId(teams[0].id);
+        }
+    }, [teams, currentTeamId, roster]);
 
 
 
