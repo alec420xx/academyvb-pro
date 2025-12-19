@@ -1285,7 +1285,7 @@ export default function App() {
                     <div className="bg-slate-950 min-h-screen pb-40">
                         <div className="max-w-7xl mx-auto p-4 md:p-6">
                             {/* PLAN SETTINGS HEADER */}
-                            <div className="hidden md:flex justify-between items-center mb-6 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                            <div className="hidden md:flex justify-between items-center mb-6 bg-slate-900 p-4 rounded-xl border border-slate-800 max-w-[850px] mx-auto shadow-2xl">
                                 <div className="flex items-center gap-4">
                                     <div className="text-sm font-bold text-slate-400 uppercase tracking-widest">Start Rotation:</div>
                                     <div className="flex gap-2">
@@ -1329,14 +1329,14 @@ export default function App() {
                                                         let newList;
                                                         if (currentList.includes(p.id)) {
                                                             const filtered = currentList.filter(id => id !== p.id);
-                                                            newList = filtered.length ? filtered : [p.id]; // Prevent hiding all
+                                                            newList = filtered.length ? filtered : [p.id];
                                                         } else {
                                                             newList = [...currentList, p.id];
                                                         }
                                                         return { ...prev, [gameMode]: newList };
                                                     });
                                                 }}
-                                                className={`w-8 h-8 rounded text-[10px] font-bold transition-all ${printViewVisiblePhases.includes(p.id) ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-500 hover:text-white hover:bg-slate-700'}`}
+                                                className={`w-8 h-8 flex items-center justify-center rounded-md text-xs font-bold transition-all ${printViewVisiblePhases.includes(p.id) ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
                                                 title={p.label}
                                             >
                                                 {p.label.split(' ')[0].substring(0, 1) + (p.label.split(' ')[1] || '').substring(0, 1)}
@@ -1345,10 +1345,9 @@ export default function App() {
                                     </div>
 
                                     {/* Download Button */}
-                                    {/* Download Button */}
                                     <button
                                         onClick={() => handleExport('full-report-grid', `Start_Rot_${printViewStartRotation}_${gameMode.toUpperCase()}_Plan`)}
-                                        className="flex items-center justify-center bg-slate-100 hover:bg-white text-slate-900 w-10 h-10 rounded-lg transition-all"
+                                        className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all text-white shadow-lg border border-white/10 ${gameMode === 'offense' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
                                         title="Download Plan"
                                     >
                                         <Download size={20} />
