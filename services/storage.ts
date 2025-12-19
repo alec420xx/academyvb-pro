@@ -27,7 +27,7 @@ export const saveData = async (
             console.log(`[Cloud] Saved ${key}`);
         } catch (e) {
             console.error("Error saving to cloud", e);
-            // Fallback? Or just notify? For now, we log.
+            throw e; // RETHROW so UI knows it failed
         }
     }
 
