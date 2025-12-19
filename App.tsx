@@ -1192,7 +1192,7 @@ export default function App() {
                                 {/* MOBILE & TABLET: BENCH STRIP (Visible below lg screens) - order-3 */}
                                 <div className="lg:hidden w-full bg-slate-900 border-b border-slate-800 py-4 px-2 overflow-x-auto no-scrollbar flex items-center gap-3 mt-4 min-h-[80px] order-3">
                                     {roster.filter(p => !activePlayerIds.includes(p.id)).map(player => (
-                                        <div key={player.id} className={`flex-none w-10 h-10 rounded-full border-2 flex flex-col items-center justify-center relative ${selectedBenchPlayerId === player.id ? 'ring-4 ring-blue-500 z-10' : ''} ${getRoleColor(player.role)}`} onMouseDown={(e) => handleTokenDown(e, player.id, true)} onTouchStart={(e) => handleTokenDown(e, player.id, true)}>
+                                        <div key={player.id} className={`flex-none w-10 h-10 rounded-full border-2 flex flex-col items-center justify-center relative ${selectedBenchPlayerId === player.id ? 'ring-4 ring-blue-500 z-10' : ''} ${getRoleColor(player.role)} touch-none`} onMouseDown={(e) => handleTokenDown(e, player.id, true)} onTouchStart={(e) => handleTokenDown(e, player.id, true)}>
                                             <span className="text-[10px] font-black leading-none">{player.number}</span>
                                             <span className="text-[7px] font-bold uppercase leading-none opacity-90">{player.role}</span>
                                         </div>
