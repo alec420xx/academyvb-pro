@@ -1,5 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText } from 'lucide-react';
+import {
+    ChevronLeft, ChevronRight, Menu, Download, Trash2, RotateCcw,
+    Save, Plus, Grid, Users, Layout, Settings, FileText,
+    MousePointer2, Move, Eraser, Pen, Edit3, X, ImageIcon,
+    PenTool, Type, Circle, Square, Minus, LogIn, Trophy,
+    ArrowUpFromLine, Layers, Share2, Camera, Loader2,
+    Check, AlertTriangle, Info, Monitor, Smartphone,
+    MenuSquare, UserPlus, LogOut, Link
+} from 'lucide-react';
+import { TeamManager } from './components/managers/TeamManager';
+import { LineupManager } from './components/managers/LineupManager';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
@@ -46,9 +56,6 @@ export default function App() {
     // --- UI STATE ---
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
     const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
-    const [newItemName, setNewItemName] = useState('');
-    const [editId, setEditId] = useState<string | null>(null);
-    const [editName, setEditName] = useState('');
 
     // --- WORKING MEMORY (Active Lineup) ---
     // --- WORKING MEMORY (Active Lineup) ---
@@ -1079,71 +1086,29 @@ export default function App() {
             </header>
 
             {/* MODALS */}
-            {isTeamManagerOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-slate-900 border border-slate-700 p-0 rounded-xl shadow-2xl w-full max-w-[500px] overflow-hidden">
-                        <div className="p-4 md:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800">
-                            <h2 className="text-lg md:text-xl font-bold text-white">My Teams</h2>
-                            <button onClick={() => setIsTeamManagerOpen(false)} className="text-slate-400 hover:text-white"><X size={20} /></button>
-                        </div>
-                        <div className="p-4 max-h-[50vh] overflow-y-auto space-y-2">
-                            {teams.map(t => (
-                                <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${currentTeamId === t.id ? 'bg-blue-900/20 border-blue-500/50' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
-                                    {editId === t.id ? (
-                                        <input
-                                            className="bg-slate-900 border border-blue-500 rounded px-2 py-1 text-sm text-white flex-1 mr-2"
-                                            value={editName}
-                                            onChange={(e) => setEditName(e.target.value)}
-                                            onBlur={() => renameTeam(t.id, editName)}
-                                            onKeyDown={(e) => e.key === 'Enter' && renameTeam(t.id, editName)}
-                                            autoFocus
-                                        />
-                                    ) : (
-                                        <button onClick={() => switchTeam(t.id)} className="flex-1 text-left font-bold text-sm text-slate-200">{t.name}</button>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                        {currentTeamId === t.id && <span className="text-[10px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full">ACTIVE</span>}
-                                        <button onClick={(e) => { e.stopPropagation(); setEditId(t.id); setEditName(t.name); }} className="p-2 text-slate-500 hover:text-blue-400"><Pencil size={14} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteTeam(t.id); }} className="p-2 text-slate-500 hover:text-red-500"><Trash2 size={14} /></button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-4 md:p-6 bg-slate-800 border-t border-slate-700">
-                            <div className="flex gap-2 mb-4">
-                                <input type="text" placeholder="New Team Name" className="flex-1 p-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm outline-none" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} />
-                                <button onClick={createTeam} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm flex items-center gap-2"><Plus size={16} /> Create</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* MODALS */}
+            <TeamManager
+                isOpen={isTeamManagerOpen}
+                onClose={() => setIsTeamManagerOpen(false)}
+                teams={teams}
+                currentTeamId={currentTeamId}
+                onSwitchTeam={switchTeam}
+                onCreateTeam={createTeam}
+                onRenameTeam={renameTeam}
+                onDeleteTeam={deleteTeam}
+            />
 
-            {isLineupManagerOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-slate-900 border border-slate-700 p-0 rounded-xl shadow-2xl w-full max-w-[500px] overflow-hidden">
-                        <div className="p-4 md:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800">
-                            <h2 className="text-lg md:text-xl font-bold text-white">Lineups</h2>
-                            <button onClick={() => setIsLineupManagerOpen(false)} className="text-slate-400 hover:text-white"><X size={20} /></button>
-                        </div>
-                        <div className="p-4 overflow-y-auto flex-1 space-y-2 max-h-[50vh]">
-                            {lineups.filter(l => l.teamId === currentTeamId).map(l => (
-                                <div key={l.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${currentLineupId === l.id ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
-                                    <button onClick={() => loadLineup(l.id)} className="flex-1 text-left font-bold text-sm text-slate-200">{l.name}</button>
-                                    <div className="flex items-center gap-2">
-                                        {currentLineupId === l.id && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">ACTIVE</span>}
-                                        <button onClick={(e) => { e.stopPropagation(); deleteLineup(l.id); }} className="p-2 text-slate-500 hover:text-red-500"><Trash2 size={14} /></button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-4 md:p-6 bg-slate-800 border-t border-slate-700">
-                            <input type="text" placeholder="New Lineup Name" className="w-full p-3 bg-slate-900 border border-slate-600 rounded-lg mb-3 text-white outline-none" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} />
-                            <button onClick={() => createLineup(newItemName || 'New Lineup', roster)} className="w-full p-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2"><Plus size={16} /> Create Lineup</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <LineupManager
+                isOpen={isLineupManagerOpen}
+                onClose={() => setIsLineupManagerOpen(false)}
+                lineups={lineups}
+                currentTeamId={currentTeamId}
+                currentLineupId={currentLineupId}
+                roster={roster}
+                onSwitchLineup={loadLineup}
+                onCreateLineup={createLineup}
+                onDeleteLineup={deleteLineup}
+            />
 
             <main className="max-w-7xl mx-auto md:p-6 h-full pb-48">
                 {/* --- BOARD VIEW --- */}
