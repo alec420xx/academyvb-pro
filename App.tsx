@@ -563,6 +563,7 @@ export default function App() {
                 setPlayerPositions(prev => ({ ...prev, [draggedPlayer.id]: { x: newX, y: newY } }));
             }
             else if (isDrawing && currentPath) {
+                e.preventDefault(); // Stop scrolling while drawing
                 let pointToAdd = { x: cx, y: cy };
                 if (currentPath.anchorId) {
                     const anchorPos = playerPositions[currentPath.anchorId];
@@ -716,6 +717,9 @@ export default function App() {
     };
 
     const handleCourtDown = (e: any) => {
+        // Prevent default scrolling immediately on touch
+        if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+
         const coords = getCoords(e);
         if (!coords) return;
         const { x, y } = coords;
