@@ -14,8 +14,10 @@ import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './compon
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
 import { saveData, loadData, subscribeToData, STORAGE_KEYS } from './services/storage';
-import { LogIn, LogOut, Cloud, CloudOff, CheckCircle2, Save, Loader2, AlertTriangle } from 'lucide-react';
-import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
+// import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
+
+// Simple deep equal helper for now
+const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.stringify(obj2);
 
 export default function App() {
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
