@@ -5,13 +5,13 @@ import { getFirestore } from "firebase/firestore";
 // TODO: Replace with your Firebase project configuration
 // You can get this from the Firebase Console -> Project Settings -> General -> Your Apps
 const firebaseConfig = {
-    apiKey: "AIzaSyDlFSJq0Yp73fhUlL8-bSvMV3tfEWr2O5w",
-    authDomain: "academyvb-pro.firebaseapp.com",
-    projectId: "academyvb-pro",
-    storageBucket: "academyvb-pro.firebasestorage.app",
-    messagingSenderId: "773738627742",
-    appId: "1:773738627742:web:9047222f77be9cb6dc318f",
-    measurementId: "G-ND4T2E4RLS"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
