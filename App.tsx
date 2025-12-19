@@ -1345,12 +1345,13 @@ export default function App() {
                                     </div>
 
                                     {/* Download Button */}
+                                    {/* Download Button */}
                                     <button
                                         onClick={() => handleExport('full-report-grid', `Start_Rot_${printViewStartRotation}_${gameMode.toUpperCase()}_Plan`)}
-                                        className="flex items-center gap-2 bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 rounded-lg font-bold text-sm transition-all"
+                                        className="flex items-center justify-center bg-slate-100 hover:bg-white text-slate-900 w-10 h-10 rounded-lg transition-all"
+                                        title="Download Plan"
                                     >
-                                        <Download size={16} />
-                                        <span>Download Plan</span>
+                                        <Download size={20} />
                                     </button>
                                 </div>
                             </div>
