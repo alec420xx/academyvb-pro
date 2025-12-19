@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {roster.filter(p => !activePlayerIds.includes(p.id)).map(player => (
                         <div
                             key={player.id}
-                            className="relative flex flex-col items-center p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-red-500 cursor-grab active:cursor-grabbing group transition-all"
+                            className="relative flex flex-col items-center p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-red-500 cursor-grab active:cursor-grabbing group transition-all touch-none"
                             onMouseDown={(e) => handleTokenDown(e, player.id, true)}
                             onTouchStart={(e) => handleTokenDown(e, player.id, true)}
                         >
