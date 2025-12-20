@@ -490,7 +490,7 @@ export default function App() {
         // Find the specific lineup we are modifying
         const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
         if (activeLineup) {
-            saveLineup(user?.uid, activeLineup)
+            apiSaveLineup(user?.uid, activeLineup)
                 .then(() => setTimeout(() => setSaveStatus('saved'), 500))
                 .catch(() => setSaveStatus('error'));
         }
