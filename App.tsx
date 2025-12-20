@@ -83,37 +83,41 @@ export default function App() {
             if (data.rotations) setSavedRotations(data.rotations);
 
             // CHECK FOR LOCAL TEAMS/LINEUPS (Offline/Initial state)
-            // We need to load teams/lineups manually here since subscriptions only run if user exists.
-            let loadedTeams = await loadData(user?.uid, STORAGE_KEYS.TEAMS) || [];
-            let loadedLineups = await loadData(user?.uid, STORAGE_KEYS.LINEUPS) || [];
+            // If user is logged in, we rely on subscriptions (unsubTeams, unsubLineups) to get the "Truth".
+            // Calling loadData here fetches the OLD blob data which overwrites the fresh subscription data.
+            // So we only load from local/legacy if NO USER is present (offline mode).
+            if (!user) {
+                let loadedTeams = await loadData(null, STORAGE_KEYS.TEAMS) || [];
+                let loadedLineups = await loadData(null, STORAGE_KEYS.LINEUPS) || [];
 
-            if (loadedTeams.length === 0) {
-                console.log("[Auto-Local] Creating default 'My Team'...");
-                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                loadedTeams = [defaultTeam];
-                saveData(user?.uid, STORAGE_KEYS.TEAMS, loadedTeams); // Will save to local if no user
-            }
-            setTeams(loadedTeams);
-
-            if (loadedTeams.length > 0) {
-                const activeTeamId = loadedTeams[0].id; // Default to first
-                setCurrentTeamId(activeTeamId);
-
-                const teamLineups = loadedLineups.filter((l: Lineup) => l.teamId === activeTeamId);
-                if (teamLineups.length === 0) {
-                    console.log("[Auto-Local] Creating default 'Lineup 1'...");
-                    const defaultLineup: Lineup = {
-                        id: generateId('lineup'),
-                        teamId: activeTeamId,
-                        name: 'Lineup 1',
-                        roster: loadedTeams[0].roster,
-                        rotations: {}
-                    };
-                    loadedLineups = [...loadedLineups, defaultLineup];
-                    saveData(user?.uid, STORAGE_KEYS.LINEUPS, loadedLineups);
+                if (loadedTeams.length === 0) {
+                    console.log("[Auto-Local] Creating default 'My Team'...");
+                    const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
+                    loadedTeams = [defaultTeam];
+                    saveData(null, STORAGE_KEYS.TEAMS, loadedTeams);
                 }
+                setTeams(loadedTeams);
+
+                if (loadedTeams.length > 0) {
+                    const activeTeamId = loadedTeams[0].id;
+                    setCurrentTeamId(activeTeamId);
+
+                    const teamLineups = loadedLineups.filter((l: Lineup) => l.teamId === activeTeamId);
+                    if (teamLineups.length === 0) {
+                        console.log("[Auto-Local] Creating default 'Lineup 1'...");
+                        const defaultLineup: Lineup = {
+                            id: generateId('lineup'),
+                            teamId: activeTeamId,
+                            name: 'Lineup 1',
+                            roster: loadedTeams[0].roster,
+                            rotations: {}
+                        };
+                        loadedLineups = [...loadedLineups, defaultLineup];
+                        saveData(null, STORAGE_KEYS.LINEUPS, loadedLineups);
+                    }
+                }
+                setLineups(loadedLineups);
             }
-            setLineups(loadedLineups);
         };
         load();
 
