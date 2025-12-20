@@ -117,125 +117,126 @@ export const subscribeToData = (
         console.error("Error setting up subscription", e);
         return () => { };
     }
-    /**
-     * Subscribes to a sub-collection (e.g. users/{uid}/teams)
-     */
-    export const subscribeToCollection = (
-        userId: string | undefined | null,
-        collectionName: string,
-        callback: (data: any[]) => void
-    ) => {
-        if (!userId) return () => { };
+};
+/**
+ * Subscribes to a sub-collection (e.g. users/{uid}/teams)
+ */
+export const subscribeToCollection = (
+    userId: string | undefined | null,
+    collectionName: string,
+    callback: (data: any[]) => void
+) => {
+    if (!userId) return () => { };
 
-        try {
-            const colRef = collection(db, 'users', userId, collectionName);
-            const unsubscribe = onSnapshot(colRef, (snapshot) => {
-                const items: any[] = [];
-                snapshot.forEach((doc) => {
-                    items.push(doc.data());
-                });
-                console.log(`[Cloud] Received ${items.length} items from ${collectionName}`);
-                callback(items);
-            }, (error) => {
-                console.error(`Error subscribing to ${collectionName}`, error);
+    try {
+        const colRef = collection(db, 'users', userId, collectionName);
+        const unsubscribe = onSnapshot(colRef, (snapshot) => {
+            const items: any[] = [];
+            snapshot.forEach((doc) => {
+                items.push(doc.data());
             });
-            return unsubscribe;
-        } catch (e) {
-            console.error("Error setting up collection subscription", e);
-            return () => { };
+            console.log(`[Cloud] Received ${items.length} items from ${collectionName}`);
+            callback(items);
+        }, (error) => {
+            console.error(`Error subscribing to ${collectionName}`, error);
+        });
+        return unsubscribe;
+    } catch (e) {
+        console.error("Error setting up collection subscription", e);
+        return () => { };
+    }
+};
+
+// --- ATOMIC SAVE OPERATIONS (V2 Architecture) ---
+
+export const saveTeam = async (userId: string | undefined | null, team: any) => {
+    if (!userId) return; // TODO: Local fallback?
+    try {
+        const docRef = doc(db, 'users', userId, 'teams', team.id);
+        await setDoc(docRef, team);
+        console.log(`[Cloud] Saved Team ${team.name}`);
+    } catch (e) {
+        console.error("Error saving team", e);
+        throw e;
+    }
+};
+
+export const deleteTeam = async (userId: string | undefined | null, teamId: string) => {
+    if (!userId) return;
+    try {
+        const docRef = doc(db, 'users', userId, 'teams', teamId);
+        await deleteDoc(docRef);
+        console.log(`[Cloud] Deleted Team ${teamId}`);
+    } catch (e) {
+        console.error("Error deleting team", e);
+        throw e;
+    }
+};
+
+export const saveLineup = async (userId: string | undefined | null, lineup: any) => {
+    if (!userId) return;
+    try {
+        const docRef = doc(db, 'users', userId, 'lineups', lineup.id);
+        await setDoc(docRef, lineup);
+        console.log(`[Cloud] Saved Lineup ${lineup.name}`);
+    } catch (e) {
+        console.error("Error saving lineup", e);
+        throw e;
+    }
+};
+
+export const deleteLineup = async (userId: string | undefined | null, lineupId: string) => {
+    if (!userId) return;
+    try {
+        const docRef = doc(db, 'users', userId, 'lineups', lineupId);
+        await deleteDoc(docRef);
+        console.log(`[Cloud] Deleted Lineup ${lineupId}`);
+    } catch (e) {
+        console.error("Error deleting lineup", e);
+        throw e;
+    }
+};
+
+// --- MIGRATION LOGIC ---
+
+export const migrateCloudData = async (userId: string) => {
+    console.log("[Migration] Checking for v1 data to migrate...");
+    try {
+        const userRef = doc(db, 'users', userId);
+        const snapshot = await getDoc(userRef);
+
+        if (!snapshot.exists()) return;
+        const data = snapshot.data();
+
+        // Check if v2 migration flag exists
+        if (data.migration_v2_complete) {
+            console.log("[Migration] Already migrated to v2.");
+            return;
         }
-    };
 
-    // --- ATOMIC SAVE OPERATIONS (V2 Architecture) ---
-
-    export const saveTeam = async (userId: string | undefined | null, team: any) => {
-        if (!userId) return; // TODO: Local fallback?
-        try {
-            const docRef = doc(db, 'users', userId, 'teams', team.id);
-            await setDoc(docRef, team);
-            console.log(`[Cloud] Saved Team ${team.name}`);
-        } catch (e) {
-            console.error("Error saving team", e);
-            throw e;
-        }
-    };
-
-    export const deleteTeam = async (userId: string | undefined | null, teamId: string) => {
-        if (!userId) return;
-        try {
-            const docRef = doc(db, 'users', userId, 'teams', teamId);
-            await deleteDoc(docRef);
-            console.log(`[Cloud] Deleted Team ${teamId}`);
-        } catch (e) {
-            console.error("Error deleting team", e);
-            throw e;
-        }
-    };
-
-    export const saveLineup = async (userId: string | undefined | null, lineup: any) => {
-        if (!userId) return;
-        try {
-            const docRef = doc(db, 'users', userId, 'lineups', lineup.id);
-            await setDoc(docRef, lineup);
-            console.log(`[Cloud] Saved Lineup ${lineup.name}`);
-        } catch (e) {
-            console.error("Error saving lineup", e);
-            throw e;
-        }
-    };
-
-    export const deleteLineup = async (userId: string | undefined | null, lineupId: string) => {
-        if (!userId) return;
-        try {
-            const docRef = doc(db, 'users', userId, 'lineups', lineupId);
-            await deleteDoc(docRef);
-            console.log(`[Cloud] Deleted Lineup ${lineupId}`);
-        } catch (e) {
-            console.error("Error deleting lineup", e);
-            throw e;
-        }
-    };
-
-    // --- MIGRATION LOGIC ---
-
-    export const migrateCloudData = async (userId: string) => {
-        console.log("[Migration] Checking for v1 data to migrate...");
-        try {
-            const userRef = doc(db, 'users', userId);
-            const snapshot = await getDoc(userRef);
-
-            if (!snapshot.exists()) return;
-            const data = snapshot.data();
-
-            // Check if v2 migration flag exists
-            if (data.migration_v2_complete) {
-                console.log("[Migration] Already migrated to v2.");
-                return;
+        // 1. Migrate Teams
+        if (data[STORAGE_KEYS.TEAMS] && Array.isArray(data[STORAGE_KEYS.TEAMS])) {
+            const teams = data[STORAGE_KEYS.TEAMS];
+            console.log(`[Migration] Found ${teams.length} teams to migrate.`);
+            for (const team of teams) {
+                await saveTeam(userId, team);
             }
-
-            // 1. Migrate Teams
-            if (data[STORAGE_KEYS.TEAMS] && Array.isArray(data[STORAGE_KEYS.TEAMS])) {
-                const teams = data[STORAGE_KEYS.TEAMS];
-                console.log(`[Migration] Found ${teams.length} teams to migrate.`);
-                for (const team of teams) {
-                    await saveTeam(userId, team);
-                }
-            }
-
-            // 2. Migrate Lineups
-            if (data[STORAGE_KEYS.LINEUPS] && Array.isArray(data[STORAGE_KEYS.LINEUPS])) {
-                const lineups = data[STORAGE_KEYS.LINEUPS];
-                console.log(`[Migration] Found ${lineups.length} lineups to migrate.`);
-                for (const lineup of lineups) {
-                    await saveLineup(userId, lineup);
-                }
-            }
-
-            // 3. Mark Complete
-            await setDoc(userRef, { migration_v2_complete: true }, { merge: true });
-            console.log("[Migration] Migration v2 COMPLETED successfully.");
-
-        } catch (e) {
-            console.error("[Migration] Error during migration", e);
         }
-    };
+
+        // 2. Migrate Lineups
+        if (data[STORAGE_KEYS.LINEUPS] && Array.isArray(data[STORAGE_KEYS.LINEUPS])) {
+            const lineups = data[STORAGE_KEYS.LINEUPS];
+            console.log(`[Migration] Found ${lineups.length} lineups to migrate.`);
+            for (const lineup of lineups) {
+                await saveLineup(userId, lineup);
+            }
+        }
+
+        // 3. Mark Complete
+        await setDoc(userRef, { migration_v2_complete: true }, { merge: true });
+        console.log("[Migration] Migration v2 COMPLETED successfully.");
+
+    } catch (e) {
+        console.error("[Migration] Error during migration", e);
+    }
+};
