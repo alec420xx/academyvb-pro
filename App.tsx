@@ -13,7 +13,7 @@ import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
-import { saveData, loadData, subscribeToData, subscribeToCollection, saveTeam, saveLineup, deleteTeam, deleteLineup, migrateCloudData, STORAGE_KEYS } from './services/storage';
+import { saveData, loadData, subscribeToData, subscribeToCollection, saveTeam as apiSaveTeam, saveLineup as apiSaveLineup, deleteTeam as apiDeleteTeam, deleteLineup as apiDeleteLineup, migrateCloudData, STORAGE_KEYS } from './services/storage';
 // import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 // Simple deep equal helper for now
@@ -595,7 +595,7 @@ export default function App() {
                 // Update local state is tricky here if we want to avoid re-renders or infinite loops
                 // but since we are Debounced, it's safer.
                 setTeams(prev => prev.map(t => t.id === currentTeamId ? updatedTeam : t));
-                saveTeam(user?.uid, updatedTeam);
+                apiSaveTeam(user?.uid, updatedTeam);
             }
         }, 1000);
         return () => clearTimeout(timer);
@@ -605,7 +605,7 @@ export default function App() {
     const createTeam = () => {
         const newTeam: Team = { id: generateId('team'), name: newItemName || 'New Team', roster: DEFAULT_ROSTER };
         setTeams([...teams, newTeam]);
-        saveTeam(user?.uid, newTeam);
+        apiSaveTeam(user?.uid, newTeam);
         setNewItemName('');
         setIsTeamManagerOpen(false);
         switchTeam(newTeam.id);
@@ -623,7 +623,7 @@ export default function App() {
         if (teams.length <= 1) return alert("Cannot delete last team.");
         const newTeams = teams.filter(t => t.id !== id);
         setTeams(newTeams);
-        deleteTeam(user?.uid, id);
+        apiDeleteTeam(user?.uid, id);
         if (currentTeamId === id) switchTeam(newTeams[0].id);
     };
 
@@ -633,7 +633,7 @@ export default function App() {
 
         const updatedTeam = { ...targetTeam, name: newName };
         setTeams(teams.map(t => t.id === id ? updatedTeam : t));
-        saveTeam(user?.uid, updatedTeam);
+        apiSaveTeam(user?.uid, updatedTeam);
         setEditId(null);
     };
 
@@ -643,7 +643,7 @@ export default function App() {
 
         const updatedLineup = { ...targetLineup, name: newName };
         setLineups(lineups.map(l => l.id === id ? updatedLineup : l));
-        saveLineup(user?.uid, updatedLineup);
+        apiSaveLineup(user?.uid, updatedLineup);
         setEditId(null);
     };
 
@@ -653,7 +653,7 @@ export default function App() {
         const newLineup: Lineup = { id: generateId('lineup'), teamId: teamId, name: name, roster: safeRoster, rotations: {} };
         const newLineups = [...currentLineupsList, newLineup];
         setLineups(newLineups);
-        saveLineup(user?.uid, newLineup);
+        apiSaveLineup(user?.uid, newLineup);
 
         if (newLineups.filter(l => l.teamId === teamId).length === 1 || teamId === currentTeamId) {
             loadLineup(newLineup.id, newLineups);
@@ -693,7 +693,7 @@ export default function App() {
         if (teamLineups.length <= 1) return alert("Must have at least one lineup.");
         const newLineups = lineups.filter(l => l.id !== id);
         setLineups(newLineups);
-        deleteLineup(user?.uid, id);
+        apiDeleteLineup(user?.uid, id);
 
         if (currentLineupId === id) {
             const remaining = newLineups.filter(l => l.teamId === currentTeamId);
