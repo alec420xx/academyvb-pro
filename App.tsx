@@ -484,15 +484,22 @@ export default function App() {
             return l;
         });
 
-        setSaveStatus('saving');
-
         // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH (now Atomic)
         // Find the specific lineup we are modifying
         const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
+
         if (activeLineup) {
+            setSaveStatus('saving');
             apiSaveLineup(user?.uid, activeLineup)
                 .then(() => setTimeout(() => setSaveStatus('saved'), 500))
-                .catch(() => setSaveStatus('error'));
+                .catch((err) => {
+                    console.error("Save failed:", err);
+                    setSaveStatus('error');
+                    alert("Failed to save changes. Please try again.");
+                });
+        } else {
+            console.error("Critical: Current Lineup ID not found in lineups list", currentLineupId);
+            setSaveStatus('error');
         }
 
         return newRotations;
