@@ -13,7 +13,7 @@ import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useCloudData } from './hooks/useCloudData';
 import { useAuth } from './contexts/AuthContext';
-import { saveData, loadData, subscribeToData, STORAGE_KEYS } from './services/storage';
+import { saveData, loadData, subscribeToData, subscribeToCollection, saveTeam, saveLineup, deleteTeam, deleteLineup, migrateCloudData, STORAGE_KEYS } from './services/storage';
 // import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 // Simple deep equal helper for now
@@ -117,7 +117,12 @@ export default function App() {
         };
         load();
 
+        load();
+
         if (!user) return;
+
+        // --- MIGRATION HOOK ---
+        migrateCloudData(user.uid);
 
         // Subscribe to Roster
         const unsubRoster = subscribeToData(user.uid, STORAGE_KEYS.ROSTER, (data) => {
@@ -142,40 +147,27 @@ export default function App() {
         });
         */
 
-        // Subscribe to Teams
-        const unsubTeams = subscribeToData(user.uid, STORAGE_KEYS.TEAMS, (data) => {
-            if (!data || (Array.isArray(data) && data.length === 0)) {
-                // No teams found (or null)? Create default "My Team"
-                console.log("[Auto] Creating default 'My Team'...");
-                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                const newTeams = [defaultTeam];
-                saveData(user.uid, STORAGE_KEYS.TEAMS, newTeams);
-                // The save will trigger this callback again, setting state
-            } else if (Array.isArray(data)) {
-                setTeams(data);
+        // Subscribe to Teams (Collection)
+        const unsubTeams = subscribeToCollection(user.uid, 'teams', (items) => {
+            // 'items' is the array of team documents
+            setTeams(items as Team[]);
 
-                // CRITICAL FIX: Sync active roster if the current team was updated remotely
-                // We use a functional update or refer to a ref if needed, but here we can just checks
-                // We need to find the current active team in the new data
-                // To avoid closure staleness on 'currentTeamId', we might need to handle this in a separate effect
-                // mimicking the 'unsubLineups' fix.
+            // Initial Sync / Active Team Logic
+            if (items.length === 0) {
+                // Do we auto-create here? Maybe. The migration should handle existing users.
+                // For NEW users, we might need a distinct check.
+                // Let's assume if it's truly empty after migration check, we create default.
+            } else {
+                // Ensure active team is valid
+                if (!currentTeamId) {
+                    setCurrentTeamId(items[0].id);
+                }
             }
         });
 
-        // Subscribe to Lineups
-        const unsubLineups = subscribeToData(user.uid, STORAGE_KEYS.LINEUPS, (data) => {
-            if (data && Array.isArray(data)) {
-                setLineups(data);
-
-                // CRITICAL FIX: If the currently active lineup was updated in this payload,
-                // we MUST update the local savedRotations state to match, otherwise
-                // the view remains stale even though lineups[] is new.
-                // We use a ref for currentLineupId since we are in a closure if we don't depend on it
-                // But this effect only depends on [user]. 
-                // We can't easily access currentLineupId state inside this callback without stale closure.
-                // Solution: We'll use a specific useEffect for this syncing below or rely on the fact 
-                // that we should switch to using lineups as the Single Source of Truth.
-            }
+        // Subscribe to Lineups (Collection)
+        const unsubLineups = subscribeToCollection(user.uid, 'lineups', (items) => {
+            setLineups(items as Lineup[]);
         });
 
         // REFACTORED: We moved the "Sync View from Lineups" logic to a separate useEffect
