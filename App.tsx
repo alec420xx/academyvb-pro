@@ -433,13 +433,16 @@ export default function App() {
     }, [roster, currentRotation]);
 
     const saveTeamsToStorage = (newTeams: Team[]) => {
+        // Deprecated: We now save individually, but for local state updates we might still use setTeams?
+        // Actually, we should call saveTeam for the specific change.
+        // But for backwards compatibility with existing UI logic (which manually creates array),
+        // we might leave this or update call sites.
+        // Let's UPDATE CALL SITES instead.
         setTeams(newTeams);
-        saveData(user?.uid, STORAGE_KEYS.TEAMS, newTeams);
     };
 
     const saveLineupsToStorage = async (newLineups: Lineup[]) => {
         setLineups(newLineups);
-        return saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
     };
 
     // DEPRECATED
@@ -479,10 +482,14 @@ export default function App() {
 
         setSaveStatus('saving');
 
-        // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH
-        saveLineupsToStorage(updatedLineups)
-            .then(() => setTimeout(() => setSaveStatus('saved'), 500))
-            .catch(() => setSaveStatus('error'));
+        // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH (now Atomic)
+        // Find the specific lineup we are modifying
+        const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
+        if (activeLineup) {
+            saveLineup(user?.uid, activeLineup)
+                .then(() => setTimeout(() => setSaveStatus('saved'), 500))
+                .catch(() => setSaveStatus('error'));
+        }
 
         return newRotations;
     };
@@ -578,13 +585,14 @@ export default function App() {
     useEffect(() => {
         if (!currentTeamId || teams.length === 0) return;
         const timer = setTimeout(() => {
-            const updatedTeams = teams.map(t => {
-                if (t.id === currentTeamId) {
-                    return { ...t, roster: roster };
-                }
-                return t;
-            });
-            saveTeamsToStorage(updatedTeams);
+            const activeTeam = teams.find(t => t.id === currentTeamId);
+            if (activeTeam) {
+                const updatedTeam = { ...activeTeam, roster: roster };
+                // Update local state is tricky here if we want to avoid re-renders or infinite loops
+                // but since we are Debounced, it's safer.
+                setTeams(prev => prev.map(t => t.id === currentTeamId ? updatedTeam : t));
+                saveTeam(user?.uid, updatedTeam);
+            }
         }, 1000);
         return () => clearTimeout(timer);
     }, [roster, currentTeamId]);
@@ -592,7 +600,8 @@ export default function App() {
     // --- APP ACTIONS ---
     const createTeam = () => {
         const newTeam: Team = { id: generateId('team'), name: newItemName || 'New Team', roster: DEFAULT_ROSTER };
-        saveTeamsToStorage([...teams, newTeam]);
+        setTeams([...teams, newTeam]);
+        saveTeam(user?.uid, newTeam);
         setNewItemName('');
         setIsTeamManagerOpen(false);
         switchTeam(newTeam.id);
@@ -609,20 +618,28 @@ export default function App() {
     const deleteTeam = (id: string) => {
         if (teams.length <= 1) return alert("Cannot delete last team.");
         const newTeams = teams.filter(t => t.id !== id);
-        saveTeamsToStorage(newTeams);
+        setTeams(newTeams);
+        deleteTeam(user?.uid, id);
         if (currentTeamId === id) switchTeam(newTeams[0].id);
     };
 
     const renameTeam = (id: string, newName: string) => {
-        const newTeams = teams.map(t => t.id === id ? { ...t, name: newName } : t);
-        saveTeamsToStorage(newTeams);
+        const targetTeam = teams.find(t => t.id === id);
+        if (!targetTeam) return;
+
+        const updatedTeam = { ...targetTeam, name: newName };
+        setTeams(teams.map(t => t.id === id ? updatedTeam : t));
+        saveTeam(user?.uid, updatedTeam);
         setEditId(null);
     };
 
     const renameLineup = (id: string, newName: string) => {
-        const newLineups = lineups.map(l => l.id === id ? { ...l, name: newName } : l);
-        setLineups(newLineups);
-        saveData(user?.uid, STORAGE_KEYS.LINEUPS, newLineups);
+        const targetLineup = lineups.find(l => l.id === id);
+        if (!targetLineup) return;
+
+        const updatedLineup = { ...targetLineup, name: newName };
+        setLineups(lineups.map(l => l.id === id ? updatedLineup : l));
+        saveLineup(user?.uid, updatedLineup);
         setEditId(null);
     };
 
@@ -631,7 +648,9 @@ export default function App() {
         const safeRoster = (rosterToUse && rosterToUse.length > 0) ? rosterToUse : DEFAULT_ROSTER;
         const newLineup: Lineup = { id: generateId('lineup'), teamId: teamId, name: name, roster: safeRoster, rotations: {} };
         const newLineups = [...currentLineupsList, newLineup];
-        saveLineupsToStorage(newLineups);
+        setLineups(newLineups);
+        saveLineup(user?.uid, newLineup);
+
         if (newLineups.filter(l => l.teamId === teamId).length === 1 || teamId === currentTeamId) {
             loadLineup(newLineup.id, newLineups);
         }
@@ -669,7 +688,9 @@ export default function App() {
         const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
         if (teamLineups.length <= 1) return alert("Must have at least one lineup.");
         const newLineups = lineups.filter(l => l.id !== id);
-        saveLineupsToStorage(newLineups);
+        setLineups(newLineups);
+        deleteLineup(user?.uid, id);
+
         if (currentLineupId === id) {
             const remaining = newLineups.filter(l => l.teamId === currentTeamId);
             if (remaining.length > 0) loadLineup(remaining[0].id, newLineups);
