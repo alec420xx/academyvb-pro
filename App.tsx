@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText, CheckCircle2, Save, LogIn, LogOut } from 'lucide-react';
+import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText, CheckCircle2, Save, LogIn, LogOut, Copy } from 'lucide-react';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
@@ -625,9 +625,14 @@ export default function App() {
 
     const deleteTeam = (id: string) => {
         if (teams.length <= 1) return alert("Cannot delete last team.");
+        const team = teams.find(t => t.id === id);
+        if (!confirm(`Delete "${team?.name}"? This will also delete all lineups for this team.`)) return;
         const newTeams = teams.filter(t => t.id !== id);
         setTeams(newTeams);
         apiDeleteTeam(user?.uid, id);
+        // Also delete all lineups for this team
+        lineups.filter(l => l.teamId === id).forEach(l => apiDeleteLineup(user?.uid, l.id));
+        setLineups(lineups.filter(l => l.teamId !== id));
         if (currentTeamId === id) switchTeam(newTeams[0].id);
     };
 
@@ -695,6 +700,8 @@ export default function App() {
     const deleteLineup = (id: string) => {
         const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
         if (teamLineups.length <= 1) return alert("Must have at least one lineup.");
+        const lineup = lineups.find(l => l.id === id);
+        if (!confirm(`Delete "${lineup?.name}"?`)) return;
         const newLineups = lineups.filter(l => l.id !== id);
         setLineups(newLineups);
         apiDeleteLineup(user?.uid, id);
@@ -703,6 +710,22 @@ export default function App() {
             const remaining = newLineups.filter(l => l.teamId === currentTeamId);
             if (remaining.length > 0) loadLineup(remaining[0].id, newLineups);
         }
+    };
+
+    const duplicateLineup = (id: string) => {
+        const source = lineups.find(l => l.id === id);
+        if (!source) return;
+        const newLineup: Lineup = {
+            id: generateId('lineup'),
+            teamId: source.teamId,
+            name: `${source.name} (Copy)`,
+            roster: JSON.parse(JSON.stringify(source.roster)),
+            rotations: JSON.parse(JSON.stringify(source.rotations || {}))
+        };
+        const newLineups = [...lineups, newLineup];
+        setLineups(newLineups);
+        apiSaveLineup(user?.uid, newLineup);
+        loadLineup(newLineup.id, newLineups);
     };
 
     const initRotationDefaults = (rotNum: number, currentRoster: Player[], keepDrawings = false) => {
@@ -1604,8 +1627,9 @@ export default function App() {
                                     )}
                                     <div className="flex items-center gap-2">
                                         {currentLineupId === l.id && <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">ACTIVE</span>}
-                                        <button onClick={(e) => { e.stopPropagation(); setEditId(l.id); setEditName(l.name); }} className="p-3 text-slate-500 hover:text-blue-400 bg-slate-900/50 rounded-lg ml-1"><Pencil size={18} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteLineup(l.id); }} className="p-3 text-slate-500 hover:text-red-500 bg-slate-900/50 rounded-lg"><Trash2 size={18} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setEditId(l.id); setEditName(l.name); }} className="p-3 text-slate-500 hover:text-blue-400 bg-slate-900/50 rounded-lg ml-1" title="Rename"><Pencil size={18} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); duplicateLineup(l.id); }} className="p-3 text-slate-500 hover:text-green-400 bg-slate-900/50 rounded-lg" title="Duplicate"><Copy size={18} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteLineup(l.id); }} className="p-3 text-slate-500 hover:text-red-500 bg-slate-900/50 rounded-lg" title="Delete"><Trash2 size={18} /></button>
                                     </div>
                                 </div>
                             ))}
