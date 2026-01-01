@@ -1284,6 +1284,9 @@ export default function App() {
     const currentPhasesList = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
     const currentAttacker = currentPhasesList.find(p => p.id === currentPhase)?.attacker;
 
+    // Check if user needs to complete setup (logged in but missing team/lineup)
+    const needsSetup = user && (teams.length === 0 || !currentLineupId);
+
     useEffect(() => {
         if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
             const newPath = { ...currentPath, points: currentPath.points.slice(0, -1) };
@@ -1313,6 +1316,65 @@ export default function App() {
         }
     } else {
         cursorClass = 'cursor-crosshair';
+    }
+
+    // Setup screen when user needs to create team/lineup
+    if (needsSetup) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex items-center justify-center">
+                <div className="max-w-md w-full mx-4 bg-slate-900 rounded-2xl p-8 border border-slate-700">
+                    <div className="text-center mb-8">
+                        <div className="bg-black p-3 rounded-lg text-red-600 inline-block mb-4"><ClubLogo size={48} /></div>
+                        <h1 className="text-2xl font-black text-white mb-2">Welcome to ACADEMYVB</h1>
+                        <p className="text-slate-400">Let's get you set up to start planning!</p>
+                    </div>
+
+                    {teams.length === 0 ? (
+                        <div className="space-y-4">
+                            <p className="text-slate-300 text-center">First, create a team:</p>
+                            <input
+                                type="text"
+                                placeholder="Team Name (e.g., Varsity)"
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
+                                value={newItemName}
+                                onChange={(e) => setNewItemName(e.target.value)}
+                            />
+                            <button
+                                onClick={createTeam}
+                                disabled={!newItemName.trim()}
+                                className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Plus size={20} /> Create Team
+                            </button>
+                        </div>
+                    ) : !currentLineupId ? (
+                        <div className="space-y-4">
+                            <p className="text-slate-300 text-center">Now, create a lineup for <span className="text-white font-bold">{teams.find(t => t.id === currentTeamId)?.name}</span>:</p>
+                            <input
+                                type="text"
+                                placeholder="Lineup Name (e.g., Lineup 1)"
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-red-500 focus:outline-none"
+                                value={newItemName}
+                                onChange={(e) => setNewItemName(e.target.value)}
+                            />
+                            <button
+                                onClick={() => createLineup(newItemName || 'Lineup 1', roster, currentTeamId, lineups)}
+                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Plus size={20} /> Create Lineup
+                            </button>
+                        </div>
+                    ) : null}
+
+                    <button
+                        onClick={logout}
+                        className="w-full mt-6 py-2 text-slate-400 hover:text-white text-sm transition-colors"
+                    >
+                        Sign out
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     return (
