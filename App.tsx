@@ -150,16 +150,22 @@ export default function App() {
         */
 
         // Subscribe to Teams (Collection)
+        let defaultTeamCreated = false;
         const unsubTeams = subscribeToCollection(user.uid, 'teams', (items) => {
             // 'items' is the array of team documents
             setTeams(items as Team[]);
 
             // Initial Sync / Active Team Logic
-            if (items.length === 0) {
-                // Do we auto-create here? Maybe. The migration should handle existing users.
-                // For NEW users, we might need a distinct check.
-                // Let's assume if it's truly empty after migration check, we create default.
-            } else {
+            if (items.length === 0 && !defaultTeamCreated) {
+                // Auto-create default team for new cloud users
+                defaultTeamCreated = true;
+                console.log("[Auto-Cloud] Creating default 'My Team'...");
+                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
+                apiSaveTeam(user.uid, defaultTeam);
+                setTeams([defaultTeam]);
+                setCurrentTeamId(defaultTeam.id);
+                setRoster(defaultTeam.roster);
+            } else if (items.length > 0) {
                 // Ensure active team is valid
                 if (!currentTeamId) {
                     setCurrentTeamId(items[0].id);
@@ -170,6 +176,7 @@ export default function App() {
         // Subscribe to Lineups (Collection)
         const unsubLineups = subscribeToCollection(user.uid, 'lineups', (items) => {
             setLineups(items as Lineup[]);
+            // Note: Default lineup creation is handled by the useEffect that watches [currentTeamId, lineups]
         });
 
         // REFACTORED: We moved the "Sync View from Lineups" logic to a separate useEffect
