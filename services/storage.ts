@@ -104,11 +104,13 @@ export const subscribeToCollection = (
 
     try {
         const colRef = collection(db, 'users', userId, collectionName);
+        console.log(`Subscribing to collection: ${collectionName} for user ${userId}`);
         const unsubscribe = onSnapshot(colRef, (snapshot) => {
             const items: any[] = [];
             snapshot.forEach((doc) => {
                 items.push(doc.data());
             });
+            console.log(`Received ${items.length} items from ${collectionName}`);
             callback(items);
         }, (error) => {
             console.error(`Firebase collection subscription error for ${collectionName}:`, error.message);
@@ -130,8 +132,14 @@ export const saveTeam = async (userId: string | undefined | null, team: any) => 
         console.error('saveTeam: Invalid team data');
         return;
     }
-    const docRef = doc(db, 'users', userId, 'teams', team.id);
-    await setDoc(docRef, team);
+    try {
+        const docRef = doc(db, 'users', userId, 'teams', team.id);
+        await setDoc(docRef, team);
+        console.log('saveTeam: Saved successfully', team.id);
+    } catch (error: any) {
+        console.error('saveTeam: Firebase error', error.message);
+        throw error;
+    }
 };
 
 export const deleteTeam = async (userId: string | undefined | null, teamId: string) => {
@@ -141,10 +149,22 @@ export const deleteTeam = async (userId: string | undefined | null, teamId: stri
 };
 
 export const saveLineup = async (userId: string | undefined | null, lineup: any) => {
-    if (!userId) throw new Error("No user ID");
-    if (!lineup || !lineup.id) throw new Error("Invalid lineup");
-    const docRef = doc(db, 'users', userId, 'lineups', lineup.id);
-    await setDoc(docRef, lineup);
+    if (!userId) {
+        console.warn('saveLineup: No user ID, saving to local only');
+        return;
+    }
+    if (!lineup || !lineup.id) {
+        console.error('saveLineup: Invalid lineup data');
+        return;
+    }
+    try {
+        const docRef = doc(db, 'users', userId, 'lineups', lineup.id);
+        await setDoc(docRef, lineup);
+        console.log('saveLineup: Saved successfully', lineup.id);
+    } catch (error: any) {
+        console.error('saveLineup: Firebase error', error.message);
+        throw error;
+    }
 };
 
 export const deleteLineup = async (userId: string | undefined | null, lineupId: string) => {
