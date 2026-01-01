@@ -1083,7 +1083,7 @@ export default function App() {
         if (!coords) return;
         const { x, y } = coords;
 
-        // @ts-ignore
+        if (!courtRef.current) return;
         const rect = courtRef.current.getBoundingClientRect();
         const cx = ((x - rect.left) / rect.width) * 100;
         const cy = ((y - rect.top) / rect.height) * 100;

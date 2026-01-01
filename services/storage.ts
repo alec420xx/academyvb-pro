@@ -84,7 +84,9 @@ export const subscribeToData = (
             } else {
                 callback(null);
             }
-        }, () => {});
+        }, (error) => {
+            console.error(`Firebase subscription error for ${key}:`, error.message);
+        });
         return unsubscribe;
     } catch (e) {
         return () => { };
@@ -108,7 +110,9 @@ export const subscribeToCollection = (
                 items.push(doc.data());
             });
             callback(items);
-        }, () => {});
+        }, (error) => {
+            console.error(`Firebase collection subscription error for ${collectionName}:`, error.message);
+        });
         return unsubscribe;
     } catch (e) {
         return () => { };
@@ -118,7 +122,14 @@ export const subscribeToCollection = (
 // --- ATOMIC SAVE OPERATIONS (V2 Architecture) ---
 
 export const saveTeam = async (userId: string | undefined | null, team: any) => {
-    if (!userId) return;
+    if (!userId) {
+        console.warn('saveTeam: No user ID, saving to local only');
+        return;
+    }
+    if (!team || !team.id) {
+        console.error('saveTeam: Invalid team data');
+        return;
+    }
     const docRef = doc(db, 'users', userId, 'teams', team.id);
     await setDoc(docRef, team);
 };

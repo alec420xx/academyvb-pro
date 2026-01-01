@@ -27,6 +27,7 @@ export const distToSegment = (p: Point, v: Point, w: Point) => {
 };
 
 export const getCentroid = (points: Point[]) => {
+    if (points.length === 0) return { x: 0, y: 0 };
     let x = 0, y = 0;
     points.forEach(p => { x += p.x; y += p.y; });
     return { x: x / points.length, y: y / points.length };
