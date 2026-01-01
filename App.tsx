@@ -1254,6 +1254,58 @@ export default function App() {
         setFuture(prev => prev.slice(1));
     };
 
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            // Escape - Cancel drawing or deselect
+            if (e.key === 'Escape') {
+                if (isDrawing) {
+                    setCurrentPath(null);
+                    setIsDrawing(false);
+                }
+                if (selectedShapeIndex !== null) {
+                    setSelectedShapeIndex(null);
+                }
+                if (hoveredElement) {
+                    setHoveredElement(null);
+                }
+            }
+
+            // Delete or Backspace - Delete selected shape
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedShapeIndex !== null) {
+                    const newPaths = paths.filter((_, i) => i !== selectedShapeIndex);
+                    setPaths(newPaths);
+                    setSelectedShapeIndex(null);
+                    saveCurrentState({ paths: newPaths });
+                } else if (hoveredElement && hoveredElement.type !== 'vertex') {
+                    const newPaths = paths.filter((_, i) => i !== hoveredElement.index);
+                    setPaths(newPaths);
+                    setHoveredElement(null);
+                    saveCurrentState({ paths: newPaths });
+                }
+            }
+
+            // Ctrl/Cmd + Z - Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+
+            // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y - Redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isDrawing, selectedShapeIndex, hoveredElement, paths, undo, redo]);
+
     const updateRoster = (index: number, field: keyof Player, value: string) => {
         if (field === 'number' && value.length > 4) return;
         const newRoster = [...roster];
