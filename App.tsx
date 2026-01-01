@@ -121,8 +121,6 @@ export default function App() {
         };
         load();
 
-        load();
-
         if (!user) return;
 
         // --- MIGRATION HOOK ---
@@ -187,10 +185,15 @@ export default function App() {
 
     // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
     // If 'lineups' updates (from cloud), check if our current lineup has newer data
-    // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
-    // If 'lineups' updates (from cloud), check if our current lineup has newer data
+    // Skip if we're in the middle of saving to avoid race conditions
     useEffect(() => {
         if (!currentLineupId || lineups.length === 0) return;
+
+        // Don't overwrite local state while a save is in progress
+        if (saveInProgressRef.current) {
+            console.log("[Sync] Skipping cloud sync - save in progress");
+            return;
+        }
 
         const activeLineupData = lineups.find(l => l.id === currentLineupId);
         if (activeLineupData && activeLineupData.rotations) {
@@ -245,6 +248,7 @@ export default function App() {
     const [draggedVertex, setDraggedVertex] = useState<{ pathIndex: number, vertexIndex: number } | null>(null);
 
     const courtRef = useRef<HTMLDivElement>(null);
+    const saveInProgressRef = useRef<boolean>(false);
 
     // --- CONSTRAINT HELPERS ---
     const getPlayerIdInZone = (targetZone: number) => {
@@ -456,20 +460,30 @@ export default function App() {
     };
     */
 
-    const saveCurrentState = () => {
+    const saveCurrentState = (overrides?: {
+        paths?: DrawingPath[],
+        positions?: Record<string, PlayerPosition>,
+        activePlayers?: string[]
+    }) => {
         if (!currentLineupId) return;
         const key = getStorageKey(currentRotation, currentPhase, gameMode);
 
+        // Use overrides if provided, otherwise use current state
+        // This fixes the stale closure issue when called immediately after setState
+        const pathsToSave = overrides?.paths ?? paths;
+        const positionsToSave = overrides?.positions ?? playerPositions;
+        const activePlayersToSave = overrides?.activePlayers ?? activePlayerIds;
+
         // Clean undefineds to avoid sync mismatches
-        const cleanPositions = JSON.parse(JSON.stringify(playerPositions));
-        const cleanPaths = JSON.parse(JSON.stringify(paths));
+        const cleanPositions = JSON.parse(JSON.stringify(positionsToSave));
+        const cleanPaths = JSON.parse(JSON.stringify(pathsToSave));
 
         const newRotations = {
             ...savedRotations,
             [key]: {
                 positions: cleanPositions,
                 paths: cleanPaths,
-                activePlayers: activePlayerIds,
+                activePlayers: activePlayersToSave,
                 notes: currentNotes
             }
         };
@@ -477,12 +491,14 @@ export default function App() {
         // Update local state
         setSavedRotations(newRotations);
 
+        // Also update lineups state immediately so cloud sync doesn't overwrite
         const updatedLineups = lineups.map(l => {
             if (l.id === currentLineupId) {
                 return { ...l, rotations: newRotations, roster: roster };
             }
             return l;
         });
+        setLineups(updatedLineups);
 
         // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH (now Atomic)
         // Find the specific lineup we are modifying
@@ -490,11 +506,18 @@ export default function App() {
 
         if (activeLineup) {
             setSaveStatus('saving');
+            saveInProgressRef.current = true;
             apiSaveLineup(user?.uid, activeLineup)
-                .then(() => setTimeout(() => setSaveStatus('saved'), 500))
+                .then(() => {
+                    setTimeout(() => {
+                        setSaveStatus('saved');
+                        saveInProgressRef.current = false;
+                    }, 500);
+                })
                 .catch((err) => {
                     console.error("Save failed:", err);
                     setSaveStatus('error');
+                    saveInProgressRef.current = false;
                     alert("Failed to save changes. Please try again.");
                 });
         } else {
@@ -925,6 +948,8 @@ export default function App() {
             }
 
             if (draggedPlayer) {
+                let substitutionData: { positions?: Record<string, PlayerPosition>, activePlayers?: string[] } | null = null;
+
                 if (draggedPlayer.isBench) {
                     const rect = courtRef.current?.getBoundingClientRect();
                     if (rect) {
@@ -950,31 +975,38 @@ export default function App() {
                                 } else {
                                     const benchId = draggedPlayer.id;
                                     const newActive = activePlayerIds.map(id => id === nearestId ? benchId : id);
+
+                                    // Compute new positions before setting state
+                                    const newPositions = { ...playerPositions };
+                                    if (newPositions[nearestId]) {
+                                        newPositions[benchId] = { ...newPositions[nearestId] };
+                                        delete newPositions[nearestId];
+                                    }
+
                                     setActivePlayerIds(newActive);
-                                    setPlayerPositions(prev => {
-                                        const next = { ...prev };
-                                        // @ts-ignore
-                                        if (next[nearestId]) {
-                                            // @ts-ignore
-                                            next[benchId] = { ...next[nearestId] };
-                                            // @ts-ignore
-                                            delete next[nearestId];
-                                        }
-                                        return next;
-                                    });
+                                    setPlayerPositions(newPositions);
                                     setSelectedBenchPlayerId(null);
+
+                                    // Store for saving with correct values
+                                    substitutionData = { positions: newPositions, activePlayers: newActive };
                                 }
                             }
                         }
                     }
                 }
                 setDraggedPlayer(null);
-                saveCurrentState();
+                // Pass overrides if we did a substitution, otherwise save current state
+                if (substitutionData) {
+                    saveCurrentState(substitutionData);
+                } else {
+                    saveCurrentState();
+                }
             } else if (isDrawing && (mode === 'line' || mode === 'arrow' || mode === 'draw')) {
                 setIsDrawing(false);
                 if (currentPath && currentPath.points.length > 1) {
-                    setPaths(prev => [...prev, currentPath]);
-                    saveCurrentState();
+                    const newPaths = [...paths, currentPath];
+                    setPaths(newPaths);
+                    saveCurrentState({ paths: newPaths });
                 }
                 setCurrentPath(null);
             }
@@ -1025,15 +1057,16 @@ export default function App() {
                 }
 
                 const newActive = activePlayerIds.map(id => id === courtId ? benchId : id);
+
+                // Compute new positions before setting state
+                const newPositions = { ...playerPositions };
+                newPositions[benchId] = newPositions[courtId];
+                delete newPositions[courtId];
+
                 setActivePlayerIds(newActive);
-                setPlayerPositions(prev => {
-                    const next = { ...prev };
-                    next[benchId] = next[courtId];
-                    delete next[courtId];
-                    return next;
-                });
+                setPlayerPositions(newPositions);
                 setSelectedBenchPlayerId(null);
-                saveCurrentState();
+                saveCurrentState({ positions: newPositions, activePlayers: newActive });
             } else {
                 saveToHistory();
                 setDraggedPlayer({ id: playerId, isBench });
@@ -1141,8 +1174,10 @@ export default function App() {
                 // @ts-ignore
                 if (dist < 3 && currentPath.points.length > 2) {
                     // @ts-ignore
-                    setPaths(prev => [...prev, { ...currentPath, points: currentPath.points.slice(0, -1) }]);
-                    saveCurrentState();
+                    const newPath = { ...currentPath, points: currentPath.points.slice(0, -1) };
+                    const newPaths = [...paths, newPath];
+                    setPaths(newPaths);
+                    saveCurrentState({ paths: newPaths });
                     setCurrentPath(null);
                     setIsDrawing(false);
                     return;
@@ -1172,8 +1207,10 @@ export default function App() {
                 if (Math.sqrt(Math.pow(p.x - prev.x, 2) + Math.pow(p.y - prev.y, 2)) > 0.5) uniquePoints.push(p);
             }
             if (uniquePoints.length >= 3) {
-                setPaths(prev => [...prev, { ...currentPath, points: uniquePoints }]);
-                saveCurrentState();
+                const newPath = { ...currentPath, points: uniquePoints };
+                const newPaths = [...paths, newPath];
+                setPaths(newPaths);
+                saveCurrentState({ paths: newPaths });
             }
             setCurrentPath(null);
             setIsDrawing(false);
@@ -1234,8 +1271,10 @@ export default function App() {
 
     useEffect(() => {
         if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
-            setPaths(prev => [...prev, { ...currentPath, points: currentPath.points.slice(0, -1) }]);
-            saveCurrentState();
+            const newPath = { ...currentPath, points: currentPath.points.slice(0, -1) };
+            const newPaths = [...paths, newPath];
+            setPaths(newPaths);
+            saveCurrentState({ paths: newPaths });
             setCurrentPath(null);
             setIsDrawing(false);
         } else if (isDrawing) {
