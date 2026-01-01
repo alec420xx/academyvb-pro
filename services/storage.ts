@@ -50,24 +50,9 @@ export const loadData = async (
     userId: string | undefined | null,
     key: string
 ) => {
-    // If logged in, try to fetch from Cloud first
-    if (userId) {
-        try {
-            const userRef = doc(db, 'users', userId);
-            const snapshot = await getDoc(userRef);
-            if (snapshot.exists()) {
-                const data = snapshot.data();
-                if (data && data[key]) {
-                    console.log(`[Cloud] Loaded ${key}`);
-                    // Update local storage to match cloud
-                    localStorage.setItem(key, JSON.stringify(data[key]));
-                    return data[key];
-                }
-            }
-        } catch (e) {
-            console.error("Error loading from cloud", e);
-        }
-    }
+    // For logged-in users, we use real-time subscriptions instead of getDoc
+    // This avoids "client is offline" errors during initial Firebase connection
+    // Just return local storage data - subscriptions will update with cloud data
 
     // Fallback to LocalStorage
     const local = localStorage.getItem(key);
@@ -207,7 +192,8 @@ export const deleteLineup = async (userId: string | undefined | null, lineupId: 
 // --- MIGRATION LOGIC ---
 
 export const migrateCloudData = async (userId: string) => {
-    console.log("[Migration] Checking for v1 data to migrate...");
+    // Migration uses getDoc which can fail if Firebase is still connecting
+    // This is non-critical - if it fails, we just skip migration silently
     try {
         const userRef = doc(db, 'users', userId);
         const snapshot = await getDoc(userRef);
@@ -217,14 +203,14 @@ export const migrateCloudData = async (userId: string) => {
 
         // Check if v2 migration flag exists
         if (data.migration_v2_complete) {
-            console.log("[Migration] Already migrated to v2.");
             return;
         }
+
+        console.log("[Migration] Migrating v1 data...");
 
         // 1. Migrate Teams
         if (data[STORAGE_KEYS.TEAMS] && Array.isArray(data[STORAGE_KEYS.TEAMS])) {
             const teams = data[STORAGE_KEYS.TEAMS];
-            console.log(`[Migration] Found ${teams.length} teams to migrate.`);
             for (const team of teams) {
                 await saveTeam(userId, team);
             }
@@ -233,7 +219,6 @@ export const migrateCloudData = async (userId: string) => {
         // 2. Migrate Lineups
         if (data[STORAGE_KEYS.LINEUPS] && Array.isArray(data[STORAGE_KEYS.LINEUPS])) {
             const lineups = data[STORAGE_KEYS.LINEUPS];
-            console.log(`[Migration] Found ${lineups.length} lineups to migrate.`);
             for (const lineup of lineups) {
                 await saveLineup(userId, lineup);
             }
@@ -241,9 +226,12 @@ export const migrateCloudData = async (userId: string) => {
 
         // 3. Mark Complete
         await setDoc(userRef, { migration_v2_complete: true }, { merge: true });
-        console.log("[Migration] Migration v2 COMPLETED successfully.");
+        console.log("[Migration] Complete.");
 
-    } catch (e) {
-        console.error("[Migration] Error during migration", e);
+    } catch (e: any) {
+        // Silently ignore offline errors - migration will retry on next login
+        if (!e?.message?.includes('offline')) {
+            console.error("[Migration] Error:", e);
+        }
     }
 };
