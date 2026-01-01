@@ -124,7 +124,10 @@ export default function App() {
         if (!user) return;
 
         // --- MIGRATION HOOK ---
-        migrateCloudData(user.uid);
+        // Don't block on migration - it may fail if offline
+        migrateCloudData(user.uid).catch(err => {
+            console.warn("[Migration] Migration failed (may retry later):", err.message);
+        });
 
         // Subscribe to Roster
         const unsubRoster = subscribeToData(user.uid, STORAGE_KEYS.ROSTER, (data) => {
@@ -150,38 +153,19 @@ export default function App() {
         */
 
         // Subscribe to Teams (Collection)
-        // Track if we've received actual data to avoid creating defaults on empty cache
-        let hasReceivedTeams = false;
-        let createDefaultTimeout: ReturnType<typeof setTimeout> | null = null;
-
         const unsubTeams = subscribeToCollection(user.uid, 'teams', (items) => {
+            console.log("[Cloud] Teams received:", items.length);
             setTeams(items as Team[]);
 
             if (items.length > 0) {
-                hasReceivedTeams = true;
-                // Cancel any pending default creation
-                if (createDefaultTimeout) {
-                    clearTimeout(createDefaultTimeout);
-                    createDefaultTimeout = null;
-                }
                 // Ensure active team is valid
                 if (!currentTeamId) {
                     setCurrentTeamId(items[0].id);
                 }
-            } else if (items.length === 0 && !hasReceivedTeams && !createDefaultTimeout) {
-                // Wait before creating default - subscription might fire with empty cache first
-                createDefaultTimeout = setTimeout(() => {
-                    if (!hasReceivedTeams) {
-                        console.log("[Auto-Cloud] Creating default 'My Team'...");
-                        const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                        apiSaveTeam(user.uid, defaultTeam);
-                        setTeams([defaultTeam]);
-                        setCurrentTeamId(defaultTeam.id);
-                        setRoster(defaultTeam.roster);
-                        hasReceivedTeams = true;
-                    }
-                }, 2000); // Wait 2s for server data before creating default
             }
+            // NOTE: We no longer auto-create default teams here.
+            // If user has no teams, they can create one via the Teams manager.
+            // This avoids race conditions with Firebase "offline" state.
         });
 
         // Subscribe to Lineups (Collection)
@@ -194,9 +178,7 @@ export default function App() {
         // dealing with [lineups, currentLineupId] to avoid closure hell.
 
         return () => {
-            if (createDefaultTimeout) clearTimeout(createDefaultTimeout);
             unsubRoster && unsubRoster();
-            // unsubRotations && unsubRotations();
             unsubTeams && unsubTeams();
             unsubLineups && unsubLineups();
         };
@@ -440,14 +422,10 @@ export default function App() {
                 console.log("[Effect] Loading first team lineup:", teamLineups[0].id);
                 loadLineup(teamLineups[0].id, lineups);
             }
-        } else {
-            // No lineups for this team? Auto-create "Lineup 1"
-            const currentTeam = teams.find(t => t.id === currentTeamId);
-            if (currentTeam) {
-                console.log("[Auto] Creating default 'Lineup 1' for team", currentTeam.name);
-                createLineup('Lineup 1', currentTeam.roster, currentTeamId, lineups);
-            }
         }
+        // NOTE: We no longer auto-create lineups here.
+        // If user has no lineups for a team, they can create one via the Lineups manager.
+        // This avoids race conditions with Firebase "offline" state.
     }, [currentTeamId, lineups]);
 
     // v4: RE-ENABLED AUTO-POPULATE
@@ -521,23 +499,37 @@ export default function App() {
         // Find the specific lineup we are modifying
         const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
 
-        if (activeLineup) {
+        if (activeLineup && user?.uid) {
             console.log("[Save] Saving lineup:", activeLineup.id, "User:", user?.uid);
             setSaveStatus('saving');
             saveInProgressRef.current = true;
-            apiSaveLineup(user?.uid, activeLineup)
+
+            // Safety timeout to ensure saveInProgressRef doesn't get stuck
+            const safetyTimeout = setTimeout(() => {
+                if (saveInProgressRef.current) {
+                    console.warn("[Save] Safety timeout - resetting saveInProgressRef");
+                    saveInProgressRef.current = false;
+                }
+            }, 5000);
+
+            apiSaveLineup(user.uid, activeLineup)
                 .then(() => {
                     console.log("[Save] Successfully saved lineup");
+                    clearTimeout(safetyTimeout);
                     setTimeout(() => {
                         setSaveStatus('saved');
                         saveInProgressRef.current = false;
-                    }, 500);
+                    }, 300);
                 })
                 .catch((err) => {
                     console.error("[Save] Failed:", err);
+                    clearTimeout(safetyTimeout);
                     setSaveStatus('error');
                     saveInProgressRef.current = false;
                 });
+        } else if (!user?.uid) {
+            console.error("[Save] No user ID - cannot save");
+            setSaveStatus('error');
         } else {
             console.error("[Save] No active lineup! currentLineupId:", currentLineupId, "lineups:", lineups.length);
             setSaveStatus('error');
