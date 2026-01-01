@@ -150,26 +150,37 @@ export default function App() {
         */
 
         // Subscribe to Teams (Collection)
-        let defaultTeamCreated = false;
+        // Track if we've received actual data to avoid creating defaults on empty cache
+        let hasReceivedTeams = false;
+        let createDefaultTimeout: ReturnType<typeof setTimeout> | null = null;
+
         const unsubTeams = subscribeToCollection(user.uid, 'teams', (items) => {
-            // 'items' is the array of team documents
             setTeams(items as Team[]);
 
-            // Initial Sync / Active Team Logic
-            if (items.length === 0 && !defaultTeamCreated) {
-                // Auto-create default team for new cloud users
-                defaultTeamCreated = true;
-                console.log("[Auto-Cloud] Creating default 'My Team'...");
-                const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                apiSaveTeam(user.uid, defaultTeam);
-                setTeams([defaultTeam]);
-                setCurrentTeamId(defaultTeam.id);
-                setRoster(defaultTeam.roster);
-            } else if (items.length > 0) {
+            if (items.length > 0) {
+                hasReceivedTeams = true;
+                // Cancel any pending default creation
+                if (createDefaultTimeout) {
+                    clearTimeout(createDefaultTimeout);
+                    createDefaultTimeout = null;
+                }
                 // Ensure active team is valid
                 if (!currentTeamId) {
                     setCurrentTeamId(items[0].id);
                 }
+            } else if (items.length === 0 && !hasReceivedTeams && !createDefaultTimeout) {
+                // Wait before creating default - subscription might fire with empty cache first
+                createDefaultTimeout = setTimeout(() => {
+                    if (!hasReceivedTeams) {
+                        console.log("[Auto-Cloud] Creating default 'My Team'...");
+                        const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
+                        apiSaveTeam(user.uid, defaultTeam);
+                        setTeams([defaultTeam]);
+                        setCurrentTeamId(defaultTeam.id);
+                        setRoster(defaultTeam.roster);
+                        hasReceivedTeams = true;
+                    }
+                }, 2000); // Wait 2s for server data before creating default
             }
         });
 
@@ -183,8 +194,9 @@ export default function App() {
         // dealing with [lineups, currentLineupId] to avoid closure hell.
 
         return () => {
+            if (createDefaultTimeout) clearTimeout(createDefaultTimeout);
             unsubRoster && unsubRoster();
-            // unsubRotations && unsubRotations(); 
+            // unsubRotations && unsubRotations();
             unsubTeams && unsubTeams();
             unsubLineups && unsubLineups();
         };
