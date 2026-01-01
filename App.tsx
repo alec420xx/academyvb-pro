@@ -426,27 +426,25 @@ export default function App() {
     }, [user]);
 
     // Ensure active lineup is selected when team changes or lineups load
-    // Ensure active lineup is selected when team changes or lineups load
     useEffect(() => {
+        console.log("[Effect] Lineup selection - currentTeamId:", currentTeamId, "lineups:", lineups.length, "currentLineupId:", currentLineupId);
         if (!currentTeamId) return;
 
         const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
+        console.log("[Effect] Team lineups found:", teamLineups.length, "for team:", currentTeamId);
 
         if (teamLineups.length > 0) {
             // If no current lineup, or current lineup belongs to another team, select the first one of THIS team
             const belongsToTeam = currentLineupId && teamLineups.find(l => l.id === currentLineupId);
             if (!currentLineupId || !belongsToTeam) {
+                console.log("[Effect] Loading first team lineup:", teamLineups[0].id);
                 loadLineup(teamLineups[0].id, lineups);
             }
         } else {
             // No lineups for this team? Auto-create "Lineup 1"
-            // We need to fetch the team roster to use for the lineup.
             const currentTeam = teams.find(t => t.id === currentTeamId);
             if (currentTeam) {
                 console.log("[Auto] Creating default 'Lineup 1' for team", currentTeam.name);
-                // Directly calling createLineup might be risky if dependencies aren't perfect, 
-                // but createLineup uses currentTeamId and lineups from closure.
-                // Better to call it safely.
                 createLineup('Lineup 1', currentTeam.roster, currentTeamId, lineups);
             }
         }
@@ -524,23 +522,24 @@ export default function App() {
         const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
 
         if (activeLineup) {
+            console.log("[Save] Saving lineup:", activeLineup.id, "User:", user?.uid);
             setSaveStatus('saving');
             saveInProgressRef.current = true;
             apiSaveLineup(user?.uid, activeLineup)
                 .then(() => {
+                    console.log("[Save] Successfully saved lineup");
                     setTimeout(() => {
                         setSaveStatus('saved');
                         saveInProgressRef.current = false;
                     }, 500);
                 })
                 .catch((err) => {
-                    console.error("Save failed:", err);
+                    console.error("[Save] Failed:", err);
                     setSaveStatus('error');
                     saveInProgressRef.current = false;
-                    alert("Failed to save changes. Please try again.");
                 });
         } else {
-            console.error("Critical: Current Lineup ID not found in lineups list", currentLineupId);
+            console.error("[Save] No active lineup! currentLineupId:", currentLineupId, "lineups:", lineups.length);
             setSaveStatus('error');
         }
 
@@ -712,8 +711,13 @@ export default function App() {
     };
 
     const loadLineup = (id: string, sourceLineups = lineups) => {
+        console.log("[Load] Loading lineup:", id);
         const target = sourceLineups.find(l => l.id === id);
-        if (!target) return;
+        if (!target) {
+            console.error("[Load] Lineup not found:", id, "Available:", sourceLineups.map(l => l.id));
+            return;
+        }
+        console.log("[Load] Setting currentLineupId to:", id);
         setCurrentLineupId(id);
         const validRoster = (target.roster && target.roster.length > 0) ? target.roster : DEFAULT_ROSTER;
         setRoster(validRoster);

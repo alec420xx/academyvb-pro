@@ -174,11 +174,18 @@ export const deleteTeam = async (userId: string | undefined | null, teamId: stri
 };
 
 export const saveLineup = async (userId: string | undefined | null, lineup: any) => {
-    if (!userId) return;
+    if (!userId) {
+        console.error("[Cloud] Cannot save lineup - no user ID");
+        throw new Error("No user ID provided for saveLineup");
+    }
+    if (!lineup || !lineup.id) {
+        console.error("[Cloud] Cannot save lineup - invalid lineup data", lineup);
+        throw new Error("Invalid lineup data");
+    }
     try {
         const docRef = doc(db, 'users', userId, 'lineups', lineup.id);
         await setDoc(docRef, lineup);
-        console.log(`[Cloud] Saved Lineup ${lineup.name}`);
+        console.log(`[Cloud] Saved Lineup ${lineup.name} (${lineup.id})`);
     } catch (e) {
         console.error("Error saving lineup", e);
         throw e;
