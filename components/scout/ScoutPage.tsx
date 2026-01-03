@@ -54,20 +54,6 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
     }, [currentOpponent, currentSetId]);
 
     // === OPPONENT CRUD ===
-    const createOpponent = useCallback((name: string) => {
-        const newOpponent: ScoutOpponent = {
-            id: generateId('opp'),
-            name,
-            players: [],
-            sets: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        };
-        setOpponents([...opponents, newOpponent]);
-        setCurrentOpponentId(newOpponent.id);
-        setShowOpponentManager(false);
-    }, [opponents, setOpponents]);
-
     const updateOpponent = useCallback((updated: ScoutOpponent) => {
         setOpponents(opponents.map(o => o.id === updated.id ? { ...updated, updatedAt: Date.now() } : o));
     }, [opponents, setOpponents]);
@@ -457,9 +443,21 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                     onSelect={(id) => {
                         setCurrentOpponentId(id);
                         setCurrentSetId(null);
-                        setShowOpponentManager(false);
+                        // Don't close modal - let user add players
                     }}
-                    onCreate={createOpponent}
+                    onCreate={(name) => {
+                        const newOpponent: ScoutOpponent = {
+                            id: generateId('opp'),
+                            name,
+                            players: [],
+                            sets: [],
+                            createdAt: Date.now(),
+                            updatedAt: Date.now()
+                        };
+                        setOpponents([...opponents, newOpponent]);
+                        setCurrentOpponentId(newOpponent.id);
+                        // Don't close modal - let user add players
+                    }}
                     onUpdate={updateOpponent}
                     onDelete={deleteOpponent}
                     onAddPlayer={addPlayer}

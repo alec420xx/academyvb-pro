@@ -77,11 +77,11 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                     </h2>
                 </div>
                 {/* Full Roster Summary - DYNAMIC ROWS */}
-                <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg w-auto min-w-[200px]">
+                <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg w-auto min-w-[240px]">
                     <div className="text-xs font-bold text-slate-400 uppercase mb-2 border-b pb-1">Full Roster</div>
                     <div className="grid gap-x-6 gap-y-1" style={{ gridTemplateRows: 'repeat(3, min-content)', gridAutoFlow: 'column' }}>
                         {roster.map((p) => (
-                            <div key={p.id} className="text-xs flex items-center gap-2 min-w-[100px]">
+                            <div key={p.id} className="text-xs flex items-center gap-2 min-w-[120px]">
                                 <span className="text-slate-700 flex-1 truncate">{p.name}</span>
                                 <span className="font-bold text-slate-500 shrink-0">#{p.number}</span>
                             </div>

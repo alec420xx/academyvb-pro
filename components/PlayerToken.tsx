@@ -28,20 +28,27 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
   onStartInteraction 
 }) => {
   const isGhost = style?.position === 'fixed';
-  const sizeClasses = small ? "w-7 h-7 text-[10px] border" : "w-11 h-11 md:w-14 md:h-14 border-2";
+  // Small tokens: 20px for print/export view, Normal tokens: responsive sizes
+  const sizeClasses = small ? "border" : "w-11 h-11 md:w-14 md:h-14 border-2";
   const tokenColorClass = getRoleColor(player.role);
 
   // Position logic handling for Export vs Interactive
   const positionStyle: React.CSSProperties = {};
-  
+
+  // Add explicit size for small tokens (export/print)
+  if (small) {
+      positionStyle.width = '20px';
+      positionStyle.height = '20px';
+  }
+
   if (x !== undefined && !isGhost) {
       positionStyle.left = `${x}%`;
       positionStyle.top = `${y}%`;
-      
+
       if (small) {
-          // Use margins for export stability (half of w-7 = 14px)
-          positionStyle.marginLeft = '-14px';
-          positionStyle.marginTop = '-14px';
+          // Use margins for export stability (half of 20px = 10px)
+          positionStyle.marginLeft = '-10px';
+          positionStyle.marginTop = '-10px';
           positionStyle.transform = 'none';
       } else {
           // Use transform3d for smooth dragging interactions and SAFARI fixes
@@ -81,8 +88,8 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - just centered number with explicit line-height
-        <span className="font-black pointer-events-none select-none" style={{ fontSize: '11px', lineHeight: '28px', textAlign: 'center' }}>{player.number}</span>
+        // Small token (print view) - just centered number with explicit line-height matching 20px container
+        <span className="font-black pointer-events-none select-none" style={{ fontSize: '10px', lineHeight: '20px', textAlign: 'center' }}>{player.number}</span>
       ) : (
         // Normal token - number + role
         <>
