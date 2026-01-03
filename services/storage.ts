@@ -18,13 +18,19 @@ const DEFAULT_USER_DATA: UserData = {
 };
 
 /**
- * Load all user data from Firestore
+ * Load all user data from Firestore with timeout
  */
 export const loadUserData = async (userId: string): Promise<UserData> => {
+    console.log('loadUserData: Loading for user', userId);
+
+    // Add timeout to prevent hanging if Firebase is slow/offline
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Load timeout')), 10000);
+    });
+
     try {
-        console.log('loadUserData: Loading for user', userId);
         const userRef = doc(db, 'users', userId);
-        const snapshot = await getDoc(userRef);
+        const snapshot = await Promise.race([getDoc(userRef), timeoutPromise]);
 
         if (snapshot.exists()) {
             const data = snapshot.data() as UserData;
@@ -43,6 +49,11 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
         }
     } catch (error: any) {
         console.error('loadUserData: Error', error.message);
+        // If offline or timeout, return empty data so app can still work
+        if (error.message?.includes('offline') || error.message?.includes('timeout')) {
+            console.log('loadUserData: Returning defaults due to connection issue');
+            return DEFAULT_USER_DATA;
+        }
         throw error;
     }
 };
