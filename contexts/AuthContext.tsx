@@ -54,6 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             setAuthError(null);
             console.log('AuthProvider: Starting Google sign-in...');
+            // Force account selection every time
+            googleProvider.setCustomParameters({
+                prompt: 'select_account'
+            });
             const result = await signInWithPopup(auth, googleProvider);
             console.log('AuthProvider: Sign-in successful', result.user.email);
         } catch (error: any) {

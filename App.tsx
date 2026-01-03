@@ -330,12 +330,12 @@ export default function App() {
             }
 
             if (oldPlayerId && newPlayerId) {
-                // Propagate to ALL 6 rotations, BOTH offense and defense phases
-                for (let rot = 1; rot <= 6; rot++) {
-                    // Process both offense and defense phases
-                    [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
-                        const phaseMode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
-                        const phaseKey = getStorageKey(rot, phase.id, phaseMode);
+                // Propagate to CURRENT rotation only, BOTH offense and defense phases
+                const rot = currentRotation;
+                // Process both offense and defense phases
+                [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
+                    const phaseMode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
+                    const phaseKey = getStorageKey(rot, phase.id, phaseMode);
 
                         // Skip the current key (already updated above)
                         if (phaseKey === key) return;
@@ -370,14 +370,13 @@ export default function App() {
                             id => id === oldPlayerId ? newPlayerId! : id
                         );
 
-                        newRotations[phaseKey] = {
-                            positions: newPositions,
-                            paths: existingData?.paths || [],
-                            activePlayers: updatedActivePlayers.length > 0 ? updatedActivePlayers : newActivePlayers,
-                            notes: existingData?.notes || ''
-                        };
-                    });
-                }
+                    newRotations[phaseKey] = {
+                        positions: newPositions,
+                        paths: existingData?.paths || [],
+                        activePlayers: updatedActivePlayers.length > 0 ? updatedActivePlayers : newActivePlayers,
+                        notes: existingData?.notes || ''
+                    };
+                });
             }
         }
 
