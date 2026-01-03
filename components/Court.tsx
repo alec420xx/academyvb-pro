@@ -198,8 +198,11 @@ export const Court: React.FC<CourtProps> = ({
                 const stopY = last.y - Math.sin(angle) * backOff;
 
                 // Draw straight line to the BACK OFF point, not the tip
+                // Use 'butt' lineCap to prevent rounded cap extending beyond endpoint
+                ctx.lineCap = 'butt';
                 ctx.lineTo(stopX, stopY);
                 ctx.stroke();
+                ctx.lineCap = 'round'; // Restore for other drawings
 
                 // Arrow Head at `last`
                 const tTip = { x: 0, y: 0 };
