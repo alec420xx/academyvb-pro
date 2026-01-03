@@ -172,9 +172,9 @@ export const Court: React.FC<CourtProps> = ({
                 const headLen = 16 * s;
                 const headWidth = 14 * s;
 
-                // Calculate arrowhead base position (where line should end)
-                const baseX = last.x - Math.cos(angle) * headLen;
-                const baseY = last.y - Math.sin(angle) * headLen;
+                // Arrow base is at 'last' (mouse position), tip extends forward
+                const tipX = last.x + Math.cos(angle) * headLen;
+                const tipY = last.y + Math.sin(angle) * headLen;
 
                 // Draw line with butt cap to prevent extension
                 const originalLineCap = ctx.lineCap;
@@ -193,17 +193,16 @@ export const Court: React.FC<CourtProps> = ({
                     }
                 }
 
-                // Draw line to the BASE of the arrowhead
-                ctx.lineTo(baseX, baseY);
+                // Draw line to where mouse released (arrowhead base)
+                ctx.lineTo(last.x, last.y);
                 ctx.stroke();
 
                 ctx.lineCap = originalLineCap;
 
-                // Draw arrowhead with tip at last point
-                // Extend base slightly beyond headLen to ensure it covers the line end
-                const tTip = { x: 0, y: 0 };
-                const tBackTop = { x: -(headLen + 1), y: -headWidth / 2 };
-                const tBackBot = { x: -(headLen + 1), y: headWidth / 2 };
+                // Draw arrowhead: tip is forward from 'last', base is at 'last'
+                const tTip = { x: headLen, y: 0 };  // Tip extends forward
+                const tBackTop = { x: 0, y: -headWidth / 2 };  // Base at mouse position
+                const tBackBot = { x: 0, y: headWidth / 2 };
 
                 const rotate = (p: { x: number, y: number }) => ({
                     x: p.x * Math.cos(angle) - p.y * Math.sin(angle) + last.x,
