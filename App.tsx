@@ -1355,7 +1355,7 @@ export default function App() {
                     <div className="flex-1 flex justify-start items-center gap-2 lg:gap-3">
                         <div className="bg-black p-2 rounded-lg text-red-600"><ClubLogo size={24} /></div>
                         <div>
-                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.9</span></h1>
+                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v1.0.0</span></h1>
                             <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[400px]">
                                 {isEditingHeaderTeam ? (
                                     <input
@@ -1476,7 +1476,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     <div className="bg-black p-1.5 rounded-md text-red-600"><ClubLogo size={18} /></div>
                     <div className="leading-none">
-                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.9</span></div>
+                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v1.0.0</span></div>
                         <div className="flex items-center gap-1 mt-0.5">
                             <div className="text-[10px] text-slate-400 font-bold truncate max-w-[100px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
                             <span className="text-[8px] text-slate-600">/</span>
