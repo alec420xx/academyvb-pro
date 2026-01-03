@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, FileText, LogIn, LogOut, Copy } from 'lucide-react';
-import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
+import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, FileText, LogIn, LogOut, Copy, Search } from 'lucide-react';
+import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode, ScoutedTeam, ScoutingSession } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid } from './utils';
 import { Court } from './components/Court';
@@ -10,6 +10,7 @@ import { Sidebar } from './components/Sidebar';
 import { RosterView } from './components/RosterView';
 import { RotationSquare } from './components/RotationSquare';
 import { GamePlanPrintView } from './components/GamePlanPrintView';
+import { ScoutPage } from './components/ScoutPage';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useUserData } from './hooks/useUserData';
 import { useAuth } from './contexts/AuthContext';
@@ -20,10 +21,10 @@ const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.string
 
 export default function App() {
     // --- AUTH & DATA ---
-    const { user, teams, lineups, setTeams, setLineups, isLoading, error: dataError, loadComplete, retry } = useUserData();
+    const { user, teams, lineups, scoutedTeams, scoutingSessions, setTeams, setLineups, setScoutedTeams, setScoutingSessions, isLoading, error: dataError, loadComplete, retry } = useUserData();
     const { signInWithGoogle, logout } = useAuth();
 
-    const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
+    const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export' | 'scout'>('board');
     const [gameMode, setGameMode] = useState<GameMode>('offense');
     const [currentRotation, setCurrentRotation] = useState(1);
     const [currentPhase, setCurrentPhase] = useState('receive1');
@@ -1354,7 +1355,7 @@ export default function App() {
                     <div className="flex-1 flex justify-start items-center gap-2 lg:gap-3">
                         <div className="bg-black p-2 rounded-lg text-red-600"><ClubLogo size={24} /></div>
                         <div>
-                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.8</span></h1>
+                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.9</span></h1>
                             <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[400px]">
                                 {isEditingHeaderTeam ? (
                                     <input
@@ -1430,6 +1431,10 @@ export default function App() {
                                 <Trophy size={16} />
                                 <span className="hidden lg:inline">Plan</span>
                             </button>
+                            <button onClick={() => setActiveTab('scout')} className={`flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'scout' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                <Search size={16} />
+                                <span className="hidden lg:inline">Scout</span>
+                            </button>
                         </div>
                     </div>
 
@@ -1471,7 +1476,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     <div className="bg-black p-1.5 rounded-md text-red-600"><ClubLogo size={18} /></div>
                     <div className="leading-none">
-                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.8</span></div>
+                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.9</span></div>
                         <div className="flex items-center gap-1 mt-0.5">
                             <div className="text-[10px] text-slate-400 font-bold truncate max-w-[100px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
                             <span className="text-[8px] text-slate-600">/</span>
@@ -1953,6 +1958,15 @@ export default function App() {
                     />
                 )}
 
+                {activeTab === 'scout' && (
+                    <ScoutPage
+                        scoutedTeams={scoutedTeams}
+                        scoutingSessions={scoutingSessions}
+                        setScoutedTeams={setScoutedTeams}
+                        setScoutingSessions={setScoutingSessions}
+                    />
+                )}
+
             </main >
 
             {/* --- MOBILE BOTTOM NAVIGATION --- */}
@@ -1961,6 +1975,7 @@ export default function App() {
                     <button onClick={() => setActiveTab('roster')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'roster' ? 'text-red-500' : 'text-slate-500'}`}><Users size={20} className={activeTab === 'roster' ? 'fill-current' : ''} /><span className="text-[10px] font-bold mt-1">Roster</span></button>
                     <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'board' ? 'text-red-500' : 'text-slate-500'}`}><CourtIcon size={20} /><span className="text-[10px] font-bold mt-1">Court</span></button>
                     <button onClick={() => { setActiveTab('export'); saveCurrentState(); }} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'export' ? 'text-red-500' : 'text-slate-500'}`}><Trophy size={20} /><span className="text-[10px] font-bold mt-1">Plan</span></button>
+                    <button onClick={() => setActiveTab('scout')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'scout' ? 'text-red-500' : 'text-slate-500'}`}><Search size={20} /><span className="text-[10px] font-bold mt-1">Scout</span></button>
                 </div>
             </div >
             {/* Ghost Player Token for Dragging */}

@@ -65,3 +65,51 @@ export interface Phase {
     label: string;
     attacker?: 'left' | 'middle' | 'right';
 }
+
+// Scout Types
+export interface ScoutedTeam {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: number;
+  lastScoutedAt: number;
+}
+
+export interface ScoutingSession {
+  id: string;
+  teamId: string;
+  date: number;
+  opponent?: string;
+  rotations: ScoutedRotation[];
+}
+
+export interface ScoutedRotation {
+  rotation: number;
+  players: ScoutedPlayer[];
+  stats: RotationStats;
+  notes: string;
+}
+
+export interface ScoutedPlayer {
+  number: string;
+  position: string;
+  name?: string;
+  isMainHitter: boolean;
+  setterDumpFrequency?: number;
+  notes: string;
+}
+
+export interface RotationStats {
+  serveReceive: Record<string, number>;
+  transition: Record<string, number>;
+  freeBall: Record<string, number>;
+  outOfSystem: Record<string, number>;
+  pointsWon: ScoutPoint[];
+  pointsLost: ScoutPoint[];
+}
+
+export interface ScoutPoint {
+  x: number;
+  y: number;
+  timestamp: number;
+}

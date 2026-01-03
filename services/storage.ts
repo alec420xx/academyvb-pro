@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Team, Lineup } from '../types';
+import { Team, Lineup, ScoutedTeam, ScoutingSession } from '../types';
 
 // Simple single-document storage
 // All user data is stored in one document: users/{uid}
@@ -8,12 +8,16 @@ import { Team, Lineup } from '../types';
 export interface UserData {
     teams: Team[];
     lineups: Lineup[];
+    scoutedTeams: ScoutedTeam[];
+    scoutingSessions: ScoutingSession[];
     lastUpdated: number;
 }
 
 const DEFAULT_USER_DATA: UserData = {
     teams: [],
     lineups: [],
+    scoutedTeams: [],
+    scoutingSessions: [],
     lastUpdated: Date.now()
 };
 
@@ -55,6 +59,8 @@ const migrateOldData = async (userId: string): Promise<UserData | null> => {
         const newData: UserData = {
             teams,
             lineups,
+            scoutedTeams: [],
+            scoutingSessions: [],
             lastUpdated: Date.now()
         };
 
@@ -97,11 +103,15 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
                 const data = snapshot.data() as UserData;
                 console.log('loadUserData: Found data', {
                     teams: data.teams?.length || 0,
-                    lineups: data.lineups?.length || 0
+                    lineups: data.lineups?.length || 0,
+                    scoutedTeams: data.scoutedTeams?.length || 0,
+                    scoutingSessions: data.scoutingSessions?.length || 0
                 });
                 return {
                     teams: data.teams || [],
                     lineups: data.lineups || [],
+                    scoutedTeams: data.scoutedTeams || [],
+                    scoutingSessions: data.scoutingSessions || [],
                     lastUpdated: data.lastUpdated || Date.now()
                 };
             } else {

@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { loadUserData, saveUserData, UserData } from '../services/storage';
-import { Team, Lineup } from '../types';
+import { Team, Lineup, ScoutedTeam, ScoutingSession } from '../types';
 
 export function useUserData() {
     const { user } = useAuth();
     const [teams, setTeams] = useState<Team[]>([]);
     const [lineups, setLineups] = useState<Lineup[]>([]);
+    const [scoutedTeams, setScoutedTeams] = useState<ScoutedTeam[]>([]);
+    const [scoutingSessions, setScoutingSessions] = useState<ScoutingSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -15,10 +17,14 @@ export function useUserData() {
     // Refs to always have current values
     const teamsRef = useRef<Team[]>(teams);
     const lineupsRef = useRef<Lineup[]>(lineups);
+    const scoutedTeamsRef = useRef<ScoutedTeam[]>(scoutedTeams);
+    const scoutingSessionsRef = useRef<ScoutingSession[]>(scoutingSessions);
 
     // Keep refs in sync
     useEffect(() => { teamsRef.current = teams; }, [teams]);
     useEffect(() => { lineupsRef.current = lineups; }, [lineups]);
+    useEffect(() => { scoutedTeamsRef.current = scoutedTeams; }, [scoutedTeams]);
+    useEffect(() => { scoutingSessionsRef.current = scoutingSessions; }, [scoutingSessions]);
 
     // Debounce timer ref
     const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -36,10 +42,14 @@ export function useUserData() {
             const data = await loadUserData(user.uid);
             setTeams(data.teams);
             setLineups(data.lineups);
+            setScoutedTeams(data.scoutedTeams);
+            setScoutingSessions(data.scoutingSessions);
             teamsRef.current = data.teams;
             lineupsRef.current = data.lineups;
+            scoutedTeamsRef.current = data.scoutedTeams;
+            scoutingSessionsRef.current = data.scoutingSessions;
             setLoadComplete(true); // Mark load as complete - now saves are allowed
-            console.log('useUserData: Load SUCCESS -', data.teams.length, 'teams,', data.lineups.length, 'lineups');
+            console.log('useUserData: Load SUCCESS -', data.teams.length, 'teams,', data.lineups.length, 'lineups,', data.scoutedTeams.length, 'scouted teams,', data.scoutingSessions.length, 'sessions');
         } catch (err: any) {
             console.error('useUserData: Load FAILED', err);
             setError(err.message || 'Failed to load data');
@@ -53,6 +63,8 @@ export function useUserData() {
         if (!user) {
             setTeams([]);
             setLineups([]);
+            setScoutedTeams([]);
+            setScoutingSessions([]);
             setIsLoading(false);
             setLoadComplete(false);
             return;
@@ -74,12 +86,16 @@ export function useUserData() {
         const dataToSave = {
             teams: teamsRef.current,
             lineups: lineupsRef.current,
+            scoutedTeams: scoutedTeamsRef.current,
+            scoutingSessions: scoutingSessionsRef.current,
             lastUpdated: Date.now()
         };
 
         console.log('useUserData: Saving...', {
             teams: dataToSave.teams.length,
-            lineups: dataToSave.lineups.length
+            lineups: dataToSave.lineups.length,
+            scoutedTeams: dataToSave.scoutedTeams.length,
+            scoutingSessions: dataToSave.scoutingSessions.length
         });
 
         setIsSaving(true);
@@ -129,6 +145,24 @@ export function useUserData() {
         scheduleSave(wasEmpty || isCreatingOrDeleting);
     }, [scheduleSave]);
 
+    // Update scouted teams and trigger save
+    const updateScoutedTeams = useCallback((newScoutedTeams: ScoutedTeam[]) => {
+        console.log('useUserData: updateScoutedTeams called with', newScoutedTeams.length, 'scouted teams');
+        const isCreatingOrDeleting = newScoutedTeams.length !== scoutedTeamsRef.current.length;
+        setScoutedTeams(newScoutedTeams);
+        scoutedTeamsRef.current = newScoutedTeams;
+        scheduleSave(isCreatingOrDeleting);
+    }, [scheduleSave]);
+
+    // Update scouting sessions and trigger save
+    const updateScoutingSessions = useCallback((newSessions: ScoutingSession[]) => {
+        console.log('useUserData: updateScoutingSessions called with', newSessions.length, 'sessions');
+        const isCreatingOrDeleting = newSessions.length !== scoutingSessionsRef.current.length;
+        setScoutingSessions(newSessions);
+        scoutingSessionsRef.current = newSessions;
+        scheduleSave(isCreatingOrDeleting);
+    }, [scheduleSave]);
+
     // Force save immediately (for critical operations)
     const forceSave = useCallback(async () => {
         if (saveTimerRef.current) {
@@ -158,6 +192,8 @@ export function useUserData() {
                 const data = {
                     teams: teamsRef.current,
                     lineups: lineupsRef.current,
+                    scoutedTeams: scoutedTeamsRef.current,
+                    scoutingSessions: scoutingSessionsRef.current,
                     lastUpdated: Date.now()
                 };
                 // Use sendBeacon for reliable delivery on page close
@@ -176,8 +212,12 @@ export function useUserData() {
         user,
         teams,
         lineups,
+        scoutedTeams,
+        scoutingSessions,
         setTeams: updateTeams,
         setLineups: updateLineups,
+        setScoutedTeams: updateScoutedTeams,
+        setScoutingSessions: updateScoutingSessions,
         isLoading,
         isSaving,
         error,
