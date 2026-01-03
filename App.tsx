@@ -313,8 +313,7 @@ export default function App() {
             }
         };
 
-        // If activePlayers changed, propagate to other phases in this rotation
-        // Find which player was swapped out and which was swapped in
+        // If activePlayers changed, propagate to ALL rotations and ALL phases (offense + defense)
         if (overrides?.activePlayers) {
             const oldActivePlayers = activePlayerIds;
             const newActivePlayers = overrides.activePlayers;
@@ -331,10 +330,16 @@ export default function App() {
             }
 
             if (oldPlayerId && newPlayerId) {
-                const allPhases = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
-                allPhases.forEach(phase => {
-                    const phaseKey = getStorageKey(currentRotation, phase.id, gameMode);
-                    if (phaseKey !== key) {
+                // Propagate to ALL 6 rotations, BOTH offense and defense phases
+                for (let rot = 1; rot <= 6; rot++) {
+                    // Process both offense and defense phases
+                    [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
+                        const mode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
+                        const phaseKey = getStorageKey(rot, phase.id, mode);
+
+                        // Skip the current key (already updated above)
+                        if (phaseKey === key) return;
+
                         const existingData = newRotations[phaseKey];
                         // Only update phases that already have valid position data
                         if (existingData && existingData.positions && Object.keys(existingData.positions).length > 0) {
@@ -348,15 +353,20 @@ export default function App() {
                                 }
                             });
 
+                            // Update activePlayers list too
+                            const updatedActivePlayers = (existingData.activePlayers || []).map(
+                                id => id === oldPlayerId ? newPlayerId! : id
+                            );
+
                             newRotations[phaseKey] = {
                                 positions: newPositions,
                                 paths: existingData.paths || [],
-                                activePlayers: activePlayersToSave,
+                                activePlayers: updatedActivePlayers,
                                 notes: existingData.notes || ''
                             };
                         }
-                    }
-                });
+                    });
+                }
             }
         }
 

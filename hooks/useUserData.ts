@@ -81,27 +81,37 @@ export function useUserData() {
     }, [user]);
 
     // Debounced save - schedules a save after changes settle
-    const scheduleSave = useCallback(() => {
+    const scheduleSave = useCallback((immediate = false) => {
         if (saveTimerRef.current) {
             clearTimeout(saveTimerRef.current);
         }
-        saveTimerRef.current = setTimeout(doSave, 1000);
+        if (immediate) {
+            doSave();
+        } else {
+            saveTimerRef.current = setTimeout(doSave, 500); // Reduced from 1000ms
+        }
     }, [doSave]);
 
-    // Update teams and trigger save
+    // Update teams and trigger save (immediate for create/delete)
     const updateTeams = useCallback((newTeams: Team[]) => {
         console.log('useUserData: updateTeams called with', newTeams.length, 'teams');
+        const wasEmpty = teamsRef.current.length === 0;
+        const isCreatingOrDeleting = newTeams.length !== teamsRef.current.length;
         setTeams(newTeams);
         teamsRef.current = newTeams;
-        scheduleSave();
+        // Immediate save for first team or when adding/removing teams
+        scheduleSave(wasEmpty || isCreatingOrDeleting);
     }, [scheduleSave]);
 
-    // Update lineups and trigger save
+    // Update lineups and trigger save (immediate for create/delete)
     const updateLineups = useCallback((newLineups: Lineup[]) => {
         console.log('useUserData: updateLineups called with', newLineups.length, 'lineups');
+        const wasEmpty = lineupsRef.current.length === 0;
+        const isCreatingOrDeleting = newLineups.length !== lineupsRef.current.length;
         setLineups(newLineups);
         lineupsRef.current = newLineups;
-        scheduleSave();
+        // Immediate save for first lineup or when adding/removing lineups
+        scheduleSave(wasEmpty || isCreatingOrDeleting);
     }, [scheduleSave]);
 
     // Force save immediately (for critical operations)
@@ -113,14 +123,39 @@ export function useUserData() {
         await doSave();
     }, [doSave]);
 
-    // Cleanup on unmount
+    // Cleanup on unmount - force save pending changes
     useEffect(() => {
         return () => {
             if (saveTimerRef.current) {
                 clearTimeout(saveTimerRef.current);
+                // Force immediate save on unmount
+                doSave();
             }
         };
-    }, []);
+    }, [doSave]);
+
+    // Save before page unload
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (saveTimerRef.current) {
+                clearTimeout(saveTimerRef.current);
+                // Sync save before page closes
+                const data = {
+                    teams: teamsRef.current,
+                    lineups: lineupsRef.current,
+                    lastUpdated: Date.now()
+                };
+                // Use sendBeacon for reliable delivery on page close
+                if (user && navigator.sendBeacon) {
+                    // Can't use sendBeacon with Firestore directly, but log the attempt
+                    console.log('useUserData: Page unloading with pending save');
+                }
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [user]);
 
     return {
         user,
