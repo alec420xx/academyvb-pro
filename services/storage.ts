@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Team, Lineup } from '../types';
 
@@ -18,6 +18,58 @@ const DEFAULT_USER_DATA: UserData = {
 };
 
 /**
+ * Check for and migrate old sub-collection data to new single-document format
+ */
+const migrateOldData = async (userId: string): Promise<UserData | null> => {
+    try {
+        console.log('migrateOldData: Checking for old data format...');
+
+        // Check if old teams sub-collection exists
+        const teamsRef = collection(db, 'users', userId, 'teams');
+        const teamsSnapshot = await getDocs(teamsRef);
+
+        if (teamsSnapshot.empty) {
+            console.log('migrateOldData: No old data found');
+            return null;
+        }
+
+        console.log('migrateOldData: Found old data, migrating...');
+
+        // Get old teams
+        const teams: Team[] = [];
+        teamsSnapshot.forEach(doc => {
+            teams.push({ id: doc.id, ...doc.data() } as Team);
+        });
+
+        // Get old lineups
+        const lineupsRef = collection(db, 'users', userId, 'lineups');
+        const lineupsSnapshot = await getDocs(lineupsRef);
+        const lineups: Lineup[] = [];
+        lineupsSnapshot.forEach(doc => {
+            lineups.push({ id: doc.id, ...doc.data() } as Lineup);
+        });
+
+        console.log('migrateOldData: Migrated', teams.length, 'teams,', lineups.length, 'lineups');
+
+        // Save to new format
+        const newData: UserData = {
+            teams,
+            lineups,
+            lastUpdated: Date.now()
+        };
+
+        const userRef = doc(db, 'users', userId);
+        await setDoc(userRef, newData);
+
+        console.log('migrateOldData: Migration complete');
+        return newData;
+    } catch (error) {
+        console.error('migrateOldData: Error', error);
+        return null;
+    }
+};
+
+/**
  * Load all user data from Firestore with timeout
  */
 export const loadUserData = async (userId: string): Promise<UserData> => {
@@ -25,7 +77,7 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
 
     // Add timeout to prevent hanging if Firebase is slow/offline
     const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Load timeout')), 10000);
+        setTimeout(() => reject(new Error('Load timeout')), 15000);
     });
 
     try {
@@ -44,6 +96,12 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
                 lastUpdated: data.lastUpdated || Date.now()
             };
         } else {
+            // No new-format data found - check for old data to migrate
+            console.log('loadUserData: No new-format data, checking for old data...');
+            const migratedData = await migrateOldData(userId);
+            if (migratedData) {
+                return migratedData;
+            }
             console.log('loadUserData: No data found, returning defaults');
             return DEFAULT_USER_DATA;
         }

@@ -22,8 +22,8 @@ export const RotationSquare: React.FC<RotationSquareProps> = ({ rotation, roster
       const p = zones[zoneId];
       return (
           <div className={`flex flex-col items-center justify-center ${cellBorderClasses} bg-white h-full overflow-hidden p-0.5 w-full relative z-0`}>
-              <div className="font-black text-slate-900 text-[10px] sm:text-[12px] leading-none mb-0.5 truncate w-full text-center">{p ? p.number : '-'}</div>
-              <div className="text-[6px] sm:text-[8px] font-bold text-slate-500 uppercase leading-none truncate w-full text-center">{p ? p.role : ''}</div>
+              <div className="font-black text-slate-900 text-[12px] sm:text-[14px] leading-none mb-0.5 truncate w-full text-center">{p ? p.number : '-'}</div>
+              <div className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase leading-none truncate w-full text-center">{p ? p.role : ''}</div>
           </div>
       );
   };

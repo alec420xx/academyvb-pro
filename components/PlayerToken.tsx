@@ -28,7 +28,7 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
   onStartInteraction 
 }) => {
   const isGhost = style?.position === 'fixed';
-  const sizeClasses = small ? "w-5 h-5 text-[8px] border" : "w-11 h-11 md:w-14 md:h-14 border-2";
+  const sizeClasses = small ? "w-7 h-7 text-[10px] border" : "w-11 h-11 md:w-14 md:h-14 border-2";
   const tokenColorClass = getRoleColor(player.role);
 
   // Position logic handling for Export vs Interactive
@@ -39,9 +39,9 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       positionStyle.top = `${y}%`;
       
       if (small) {
-          // Use margins for export stability
-          positionStyle.marginLeft = '-10px';
-          positionStyle.marginTop = '-10px';
+          // Use margins for export stability (half of w-7 = 14px)
+          positionStyle.marginLeft = '-14px';
+          positionStyle.marginTop = '-14px';
           positionStyle.transform = 'none';
       } else {
           // Use transform3d for smooth dragging interactions and SAFARI fixes
@@ -80,9 +80,9 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       `}
       style={{ ...positionStyle, touchAction: 'none' }}
     >
-      <div className="flex flex-col items-center justify-center h-full w-full pointer-events-none select-none leading-none -mt-[1px]">
-        <span className={`${small ? 'font-black text-[9px]' : 'font-black text-sm md:text-lg'} drop-shadow-none`} style={{ lineHeight: '1' }}>{player.number}</span>
-        <span className={`uppercase tracking-tighter font-bold ${small ? 'text-[6px]' : 'text-[8px] md:text-[9px] opacity-90'}`} style={{ lineHeight: '1' }}>{player.role}</span>
+      <div className="flex flex-col items-center justify-center h-full w-full pointer-events-none select-none leading-none">
+        <span className={`${small ? 'font-black text-[11px]' : 'font-black text-sm md:text-lg'} drop-shadow-none`} style={{ lineHeight: '1' }}>{player.number}</span>
+        {!small && <span className={`uppercase tracking-tighter font-bold text-[8px] md:text-[9px] opacity-90`} style={{ lineHeight: '1' }}>{player.role}</span>}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText, CheckCircle2, Save, LogIn, LogOut, Copy } from 'lucide-react';
+import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, FileText, LogIn, LogOut, Copy } from 'lucide-react';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid } from './utils';
@@ -20,7 +20,7 @@ const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.string
 
 export default function App() {
     // --- AUTH & DATA ---
-    const { user, teams, lineups, setTeams, setLineups, isLoading, isSaving, error: dataError, forceSave } = useUserData();
+    const { user, teams, lineups, setTeams, setLineups, isLoading } = useUserData();
     const { signInWithGoogle, logout } = useAuth();
 
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -46,9 +46,6 @@ export default function App() {
     // --- ACTIVE SELECTION STATE ---
     const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
     const [currentLineupId, setCurrentLineupId] = useState<string | null>(null);
-
-    // --- SAVE STATUS STATE ---
-    const saveStatus = isSaving ? 'saving' : (dataError ? 'error' : 'saved');
 
     // --- UI STATE ---
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
@@ -306,7 +303,7 @@ export default function App() {
         const cleanPositions = JSON.parse(JSON.stringify(positionsToSave));
         const cleanPaths = JSON.parse(JSON.stringify(pathsToSave));
 
-        const newRotations = {
+        let newRotations = {
             ...savedRotations,
             [key]: {
                 positions: cleanPositions,
@@ -315,6 +312,23 @@ export default function App() {
                 notes: currentNotes
             }
         };
+
+        // If activePlayers changed, propagate to ALL phases in this rotation
+        if (overrides?.activePlayers) {
+            const allPhases = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
+            allPhases.forEach(phase => {
+                const phaseKey = getStorageKey(currentRotation, phase.id, gameMode);
+                if (phaseKey !== key) {
+                    const existingData = newRotations[phaseKey];
+                    newRotations[phaseKey] = {
+                        positions: existingData?.positions || {},
+                        paths: existingData?.paths || [],
+                        activePlayers: activePlayersToSave,
+                        notes: existingData?.notes || ''
+                    };
+                }
+            });
+        }
 
         // Update local state
         setSavedRotations(newRotations);
@@ -1303,30 +1317,8 @@ export default function App() {
                         </div>
                     </div>
 
-                    {/* CENTER: SAVE STATUS & ACTIONS */}
+                    {/* CENTER: AUTH ACTIONS */}
                     <div className="flex items-center gap-3">
-                        {/* SAVE STATUS INDICATOR */}
-                        <div className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700">
-                            {saveStatus === 'saving' && (
-                                <>
-                                    <Loader2 size={12} className="animate-spin text-blue-400" />
-                                    <span className="text-blue-400">Saving...</span>
-                                </>
-                            )}
-                            {saveStatus === 'saved' && (
-                                <>
-                                    <CheckCircle2 size={12} className="text-green-500" />
-                                    <span className="text-green-500">Saved</span>
-                                </>
-                            )}
-                            {saveStatus === 'error' && (
-                                <>
-                                    <AlertTriangle size={12} className="text-red-500" />
-                                    <span className="text-red-500">Error</span>
-                                </>
-                            )}
-                        </div>
-
                         {/* AUTH ACTIONS */}
                         {user ? (
                             <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
@@ -1526,13 +1518,6 @@ export default function App() {
                                 <div className="w-full flex flex-wrap gap-2 justify-between items-center mb-4 lg:mb-6 mt-4 lg:mt-0 px-1 relative z-0 order-2 lg:order-1">
                                     {/* Left Side: Camera, Undo/Redo, Tools */}
                                     <div className="flex items-center gap-2">
-                                        {/* MOBILE SAVE STATUS (Visible only on mobile/tablet) */}
-                                        <div className="lg:hidden flex items-center mr-2 gap-2">
-                                            {saveStatus === 'saving' && <Loader2 size={16} className="animate-spin text-blue-400" />}
-                                            {saveStatus === 'saved' && <CheckCircle2 size={16} className="text-green-500" />}
-                                            {saveStatus === 'error' && <AlertTriangle size={16} className="text-red-500" />}
-                                        </div>
-
                                         <button onClick={() => handleExport('court-capture-area', `Rotation-${currentRotation}-${currentPhase}`)} disabled={isExporting} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm">
                                             {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
                                         </button>

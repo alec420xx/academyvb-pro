@@ -100,9 +100,9 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                             : `flex-1 py-2 ${idx !== 5 ? 'border-b border-slate-200' : ''}`
                         }
                     `}>
-                        <div className="w-24 flex-none flex flex-col items-center justify-center gap-1 border-r border-slate-200 pr-2">
-                            <div className="bg-slate-900 text-white w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm pb-[2px] leading-none pt-0.5">R{rot}</div>
-                            <div className="w-20 h-20">
+                        <div className="w-32 flex-none flex flex-col items-center justify-center gap-2 border-r border-slate-200 pr-3">
+                            <div className="bg-slate-900 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg pb-[2px] leading-none pt-0.5">R{rot}</div>
+                            <div className="w-24 h-24">
                                 <RotationSquare rotation={rot} roster={roster} />
                             </div>
                         </div>
