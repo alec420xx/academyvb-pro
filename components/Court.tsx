@@ -200,9 +200,10 @@ export const Court: React.FC<CourtProps> = ({
                 ctx.lineCap = originalLineCap;
 
                 // Draw arrowhead with tip at last point
+                // Extend base slightly beyond headLen to ensure it covers the line end
                 const tTip = { x: 0, y: 0 };
-                const tBackTop = { x: -headLen, y: -headWidth / 2 };
-                const tBackBot = { x: -headLen, y: headWidth / 2 };
+                const tBackTop = { x: -(headLen + 1), y: -headWidth / 2 };
+                const tBackBot = { x: -(headLen + 1), y: headWidth / 2 };
 
                 const rotate = (p: { x: number, y: number }) => ({
                     x: p.x * Math.cos(angle) - p.y * Math.sin(angle) + last.x,
