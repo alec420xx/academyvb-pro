@@ -83,8 +83,11 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
         });
 
         const loadPromise = async (): Promise<UserData> => {
+            console.log('loadUserData: Creating user ref for', userId);
             const userRef = doc(db, 'users', userId);
+            console.log('loadUserData: Calling getDoc...');
             const snapshot = await getDoc(userRef);
+            console.log('loadUserData: getDoc returned, exists:', snapshot.exists());
 
             if (snapshot.exists()) {
                 const data = snapshot.data() as UserData;

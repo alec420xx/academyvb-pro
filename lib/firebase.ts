@@ -14,6 +14,17 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Debug logging to check if env vars are loaded
+console.log('Firebase config check:', {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasProjectId: !!firebaseConfig.projectId,
+    projectId: firebaseConfig.projectId
+});
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error('CRITICAL: Firebase environment variables are missing!', firebaseConfig);
+}
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
@@ -22,13 +33,13 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Enable offline persistence for better reliability
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-        console.warn('Firestore persistence failed: Multiple tabs open');
-    } else if (err.code === 'unimplemented') {
-        console.warn('Firestore persistence not available in this browser');
-    }
-});
+// Note: Offline persistence disabled as it can cause initialization hangs
+// enableIndexedDbPersistence(db).catch((err) => {
+//     if (err.code === 'failed-precondition') {
+//         console.warn('Firestore persistence failed: Multiple tabs open');
+//     } else if (err.code === 'unimplemented') {
+//         console.warn('Firestore persistence not available in this browser');
+//     }
+// });
 
 export default app;
