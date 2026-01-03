@@ -1063,6 +1063,21 @@ export default function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isDrawing, selectedShapeIndex, hoveredElement, paths, undo, redo]);
 
+    // Handle mode change - complete polygon if switching away while drawing
+    useEffect(() => {
+        if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
+            const newPath = { ...currentPath, points: currentPath.points.slice(0, -1) };
+            const newPaths = [...paths, newPath];
+            setPaths(newPaths);
+            saveCurrentState({ paths: newPaths });
+            setCurrentPath(null);
+            setIsDrawing(false);
+        } else if (isDrawing) {
+            setCurrentPath(null);
+            setIsDrawing(false);
+        }
+    }, [mode]);
+
     const updateRoster = (index: number, field: keyof Player, value: string) => {
         if (field === 'number' && value.length > 4) return;
         const newRoster = [...roster];
@@ -1118,20 +1133,6 @@ export default function App() {
 
     // Check if user needs to complete setup (logged in but missing team/lineup)
     const needsSetup = teams.length === 0 || !currentLineupId;
-
-    useEffect(() => {
-        if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
-            const newPath = { ...currentPath, points: currentPath.points.slice(0, -1) };
-            const newPaths = [...paths, newPath];
-            setPaths(newPaths);
-            saveCurrentState({ paths: newPaths });
-            setCurrentPath(null);
-            setIsDrawing(false);
-        } else if (isDrawing) {
-            setCurrentPath(null);
-            setIsDrawing(false);
-        }
-    }, [mode]);
 
     // Dynamic cursor logic
     let cursorClass = 'cursor-default';
