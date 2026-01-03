@@ -171,12 +171,10 @@ export const Court: React.FC<CourtProps> = ({
                 // Relative Sizes
                 const headLen = 16 * s;
                 const headWidth = 14 * s;
-                const lineWidth = Math.max(1, 3 * s);
 
-                // Calculate stop point - back off by headLen PLUS half lineWidth (for round cap)
-                const stopDistance = headLen + (lineWidth / 2);
-                const stopX = last.x - Math.cos(angle) * stopDistance;
-                const stopY = last.y - Math.sin(angle) * stopDistance;
+                // Calculate arrowhead base position (where line should end)
+                const baseX = last.x - Math.cos(angle) * headLen;
+                const baseY = last.y - Math.sin(angle) * headLen;
 
                 // Draw line with butt cap to prevent extension
                 const originalLineCap = ctx.lineCap;
@@ -195,13 +193,13 @@ export const Court: React.FC<CourtProps> = ({
                     }
                 }
 
-                // Draw to stop point, not all the way to tip
-                ctx.lineTo(stopX, stopY);
+                // Draw line to the BASE of the arrowhead
+                ctx.lineTo(baseX, baseY);
                 ctx.stroke();
 
                 ctx.lineCap = originalLineCap;
 
-                // Draw arrowhead
+                // Draw arrowhead with tip at last point
                 const tTip = { x: 0, y: 0 };
                 const tBackTop = { x: -headLen, y: -headWidth / 2 };
                 const tBackBot = { x: -headLen, y: headWidth / 2 };
