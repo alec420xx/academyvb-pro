@@ -1398,26 +1398,7 @@ export default function App() {
                                     <span className="text-red-500">Error</span>
                                 </>
                             )}
-                            {saveStatus === 'unsaved' && (
-                                <>
-                                    <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                                    <span className="text-orange-400">Unsaved</span>
-                                </>
-                            )}
                         </div>
-
-                        {/* MANUAL SAVE BUTTON */}
-                        <button
-                            onClick={() => saveCurrentState()}
-                            disabled={saveStatus === 'saved' || saveStatus === 'saving'}
-                            className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm ${saveStatus === 'unsaved'
-                                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                                : 'bg-slate-800 text-slate-500 border border-slate-700'
-                                }`}
-                        >
-                            <Save size={12} />
-                            Save Now
-                        </button>
 
                         {/* AUTH ACTIONS */}
                         {user ? (
@@ -1623,20 +1604,6 @@ export default function App() {
                                             {saveStatus === 'saving' && <Loader2 size={16} className="animate-spin text-blue-400" />}
                                             {saveStatus === 'saved' && <CheckCircle2 size={16} className="text-green-500" />}
                                             {saveStatus === 'error' && <AlertTriangle size={16} className="text-red-500" />}
-                                            {saveStatus === 'unsaved' && <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
-
-                                            {/* Mobile Save Button */}
-                                            <button
-                                                onClick={() => saveCurrentState()}
-                                                disabled={saveStatus === 'saved' || saveStatus === 'saving'}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${saveStatus === 'unsaved'
-                                                    ? 'bg-blue-600 text-white shadow-md active:scale-95'
-                                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
-                                                    }`}
-                                            >
-                                                <Save size={14} />
-                                                Save
-                                            </button>
                                         </div>
 
                                         <button onClick={() => handleExport('court-capture-area', `Rotation-${currentRotation}-${currentPhase}`)} disabled={isExporting} className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-white hover:bg-slate-700 shadow-sm">
