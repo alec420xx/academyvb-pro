@@ -107,11 +107,8 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
         }
     } catch (error: any) {
         console.error('loadUserData: Error', error.message);
-        // If offline or timeout, return empty data so app can still work
-        if (error.message?.includes('offline') || error.message?.includes('timeout')) {
-            console.log('loadUserData: Returning defaults due to connection issue');
-            return DEFAULT_USER_DATA;
-        }
+        // Always throw - don't return defaults on error
+        // This prevents the app from showing "create team" and overwriting existing data
         throw error;
     }
 };

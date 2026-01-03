@@ -20,7 +20,7 @@ const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.string
 
 export default function App() {
     // --- AUTH & DATA ---
-    const { user, teams, lineups, setTeams, setLineups, isLoading } = useUserData();
+    const { user, teams, lineups, setTeams, setLineups, isLoading, error: dataError, loadComplete, retry } = useUserData();
     const { signInWithGoogle, logout } = useAuth();
 
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
@@ -334,37 +334,48 @@ export default function App() {
                 for (let rot = 1; rot <= 6; rot++) {
                     // Process both offense and defense phases
                     [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
-                        const mode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
-                        const phaseKey = getStorageKey(rot, phase.id, mode);
+                        const phaseMode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
+                        const phaseKey = getStorageKey(rot, phase.id, phaseMode);
 
                         // Skip the current key (already updated above)
                         if (phaseKey === key) return;
 
                         const existingData = newRotations[phaseKey];
-                        // Only update phases that already have valid position data
+
+                        // Get positions - use existing or create defaults
+                        let basePositions: Record<string, PlayerPosition>;
+                        let baseActivePlayers: string[];
+
                         if (existingData && existingData.positions && Object.keys(existingData.positions).length > 0) {
-                            // Swap the player ID in positions
-                            const newPositions: Record<string, PlayerPosition> = {};
-                            Object.entries(existingData.positions).forEach(([id, pos]) => {
-                                if (id === oldPlayerId) {
-                                    newPositions[newPlayerId!] = pos;
-                                } else {
-                                    newPositions[id] = pos;
-                                }
-                            });
-
-                            // Update activePlayers list too
-                            const updatedActivePlayers = (existingData.activePlayers || []).map(
-                                id => id === oldPlayerId ? newPlayerId! : id
-                            );
-
-                            newRotations[phaseKey] = {
-                                positions: newPositions,
-                                paths: existingData.paths || [],
-                                activePlayers: updatedActivePlayers,
-                                notes: existingData.notes || ''
-                            };
+                            basePositions = existingData.positions;
+                            baseActivePlayers = existingData.activePlayers || [];
+                        } else {
+                            // Create default positions for this rotation with the NEW active players
+                            basePositions = calculateDefaultPositions(rot, roster);
+                            baseActivePlayers = [...newActivePlayers]; // Use new active players
                         }
+
+                        // Swap the player ID in positions
+                        const newPositions: Record<string, PlayerPosition> = {};
+                        Object.entries(basePositions).forEach(([id, pos]) => {
+                            if (id === oldPlayerId) {
+                                newPositions[newPlayerId!] = pos;
+                            } else {
+                                newPositions[id] = pos;
+                            }
+                        });
+
+                        // Update activePlayers list
+                        const updatedActivePlayers = baseActivePlayers.map(
+                            id => id === oldPlayerId ? newPlayerId! : id
+                        );
+
+                        newRotations[phaseKey] = {
+                            positions: newPositions,
+                            paths: existingData?.paths || [],
+                            activePlayers: updatedActivePlayers.length > 0 ? updatedActivePlayers : newActivePlayers,
+                            notes: existingData?.notes || ''
+                        };
                     });
                 }
             }
@@ -1185,8 +1196,40 @@ export default function App() {
         );
     }
 
-    // Check if user needs to complete setup (logged in but missing team/lineup)
-    const needsSetup = teams.length === 0 || !currentLineupId;
+    // --- ERROR SCREEN (load failed) ---
+    if (dataError && !loadComplete) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex items-center justify-center">
+                <div className="max-w-md w-full mx-4 bg-slate-900 rounded-2xl p-8 border border-red-700">
+                    <div className="text-center mb-6">
+                        <div className="bg-red-900 p-3 rounded-lg text-red-400 inline-block mb-4">
+                            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h1 className="text-xl font-black text-white mb-2">Connection Error</h1>
+                        <p className="text-slate-400 text-sm mb-2">Could not load your data.</p>
+                        <p className="text-slate-500 text-xs">{dataError}</p>
+                    </div>
+                    <button
+                        onClick={retry}
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        <RefreshCw size={18} /> Try Again
+                    </button>
+                    <button
+                        onClick={logout}
+                        className="w-full mt-3 py-2 text-slate-400 hover:text-white text-sm transition-colors"
+                    >
+                        Sign out
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if user needs to complete setup (logged in, load succeeded, but no data)
+    const needsSetup = loadComplete && (teams.length === 0 || !currentLineupId);
 
     // Dynamic cursor logic
     let cursorClass = 'cursor-default';

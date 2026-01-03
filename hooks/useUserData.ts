@@ -10,6 +10,7 @@ export function useUserData() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [loadComplete, setLoadComplete] = useState(false); // Track if we've loaded successfully
 
     // Refs to always have current values
     const teamsRef = useRef<Team[]>(teams);
@@ -23,38 +24,52 @@ export function useUserData() {
     const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Load data when user logs in
+    const loadData = useCallback(async () => {
+        if (!user) return;
+
+        setIsLoading(true);
+        setError(null);
+        setLoadComplete(false);
+
+        try {
+            console.log('useUserData: Starting load for user', user.uid);
+            const data = await loadUserData(user.uid);
+            setTeams(data.teams);
+            setLineups(data.lineups);
+            teamsRef.current = data.teams;
+            lineupsRef.current = data.lineups;
+            setLoadComplete(true); // Mark load as complete - now saves are allowed
+            console.log('useUserData: Load SUCCESS -', data.teams.length, 'teams,', data.lineups.length, 'lineups');
+        } catch (err: any) {
+            console.error('useUserData: Load FAILED', err);
+            setError(err.message || 'Failed to load data');
+            // DON'T set loadComplete - this prevents saves from overwriting data
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user]);
+
     useEffect(() => {
         if (!user) {
             setTeams([]);
             setLineups([]);
             setIsLoading(false);
+            setLoadComplete(false);
             return;
         }
+        loadData();
+    }, [user, loadData]);
 
-        const load = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const data = await loadUserData(user.uid);
-                setTeams(data.teams);
-                setLineups(data.lineups);
-                teamsRef.current = data.teams;
-                lineupsRef.current = data.lineups;
-                console.log('useUserData: Loaded', data.teams.length, 'teams,', data.lineups.length, 'lineups');
-            } catch (err: any) {
-                console.error('useUserData: Load error', err);
-                setError(err.message || 'Failed to load data');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        load();
-    }, [user]);
-
-    // Immediate save function
+    // Immediate save function - ONLY saves if we've loaded successfully first
     const doSave = useCallback(async () => {
         if (!user) return;
+
+        // CRITICAL: Don't save if we haven't loaded successfully
+        // This prevents overwriting existing data when load fails
+        if (!loadComplete) {
+            console.warn('useUserData: BLOCKING SAVE - load not complete, would overwrite data');
+            return;
+        }
 
         const dataToSave = {
             teams: teamsRef.current,
@@ -78,7 +93,7 @@ export function useUserData() {
         } finally {
             setIsSaving(false);
         }
-    }, [user]);
+    }, [user, loadComplete]);
 
     // Debounced save - schedules a save after changes settle
     const scheduleSave = useCallback((immediate = false) => {
@@ -166,6 +181,8 @@ export function useUserData() {
         isLoading,
         isSaving,
         error,
+        loadComplete,
+        retry: loadData,
         forceSave
     };
 }

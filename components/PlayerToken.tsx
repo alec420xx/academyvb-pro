@@ -80,12 +80,17 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       `}
       style={{ ...positionStyle, touchAction: 'none' }}
     >
-      <div className="flex items-center justify-center h-full w-full pointer-events-none select-none">
-        <span className={`${small ? 'font-black text-[12px]' : 'font-black text-sm md:text-lg'} drop-shadow-none`}>{player.number}</span>
-        {!small && <span className="sr-only">{player.role}</span>}
-      </div>
-      {!small && (
-        <span className="absolute bottom-0.5 left-0 right-0 text-center uppercase tracking-tighter font-bold text-[8px] md:text-[9px] opacity-90 pointer-events-none select-none">{player.role}</span>
+      {small ? (
+        // Small token (print view) - just centered number
+        <span className="font-black text-[11px] leading-none pointer-events-none select-none" style={{ marginTop: '-1px' }}>{player.number}</span>
+      ) : (
+        // Normal token - number + role
+        <>
+          <div className="flex flex-col items-center justify-center pointer-events-none select-none" style={{ marginTop: '-2px' }}>
+            <span className="font-black text-sm md:text-lg leading-none">{player.number}</span>
+          </div>
+          <span className="absolute bottom-0.5 left-0 right-0 text-center uppercase tracking-tighter font-bold text-[8px] md:text-[9px] opacity-90 pointer-events-none select-none">{player.role}</span>
+        </>
       )}
     </div>
   );
