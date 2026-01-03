@@ -28,7 +28,7 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
   onStartInteraction 
 }) => {
   const isGhost = style?.position === 'fixed';
-  // Small tokens: 20px for print/export view, Normal tokens: responsive sizes
+  // Small tokens: 16px for print/export view, Normal tokens: responsive sizes
   const sizeClasses = small ? "border" : "w-11 h-11 md:w-14 md:h-14 border-2";
   const tokenColorClass = getRoleColor(player.role);
 
@@ -37,8 +37,8 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
 
   // Add explicit size for small tokens (export/print)
   if (small) {
-      positionStyle.width = '20px';
-      positionStyle.height = '20px';
+      positionStyle.width = '16px';
+      positionStyle.height = '16px';
   }
 
   if (x !== undefined && !isGhost) {
@@ -46,9 +46,9 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       positionStyle.top = `${y}%`;
 
       if (small) {
-          // Use margins for export stability (half of 20px = 10px)
-          positionStyle.marginLeft = '-10px';
-          positionStyle.marginTop = '-10px';
+          // Use margins for export stability (half of 16px = 8px)
+          positionStyle.marginLeft = '-8px';
+          positionStyle.marginTop = '-8px';
           positionStyle.transform = 'none';
       } else {
           // Use transform3d for smooth dragging interactions and SAFARI fixes
@@ -88,8 +88,8 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - just centered number with explicit line-height matching 20px container
-        <span className="font-black pointer-events-none select-none" style={{ fontSize: '10px', lineHeight: '20px', textAlign: 'center' }}>{player.number}</span>
+        // Small token (print view) - just centered number with explicit line-height matching 16px container
+        <span className="font-black pointer-events-none select-none" style={{ fontSize: '9px', lineHeight: '16px', textAlign: 'center' }}>{player.number}</span>
       ) : (
         // Normal token - number + role
         <>
