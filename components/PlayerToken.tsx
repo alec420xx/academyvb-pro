@@ -88,18 +88,16 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - pixel positioned for html2canvas compatibility
-        // Container is 16px, center text using fixed pixel offsets
+        // Small token (print view) - use line-height centering for html2canvas
+        // Container is 16px, line-height 16px centers text vertically
         <span
           className="font-black pointer-events-none select-none"
           style={{
-            position: 'absolute',
-            top: '3px',
-            left: '0',
-            right: '0',
+            display: 'block',
+            width: '100%',
             textAlign: 'center',
             fontSize: '9px',
-            lineHeight: '1'
+            lineHeight: '16px'
           }}
         >
           {player.number}
