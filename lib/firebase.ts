@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence, enableNetwork } from "firebase/firestore";
 
 // TODO: Replace with your Firebase project configuration
 // You can get this from the Firebase Console -> Project Settings -> General -> Your Apps
@@ -41,6 +41,11 @@ try {
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Ensure network is enabled for Firestore
+enableNetwork(db)
+    .then(() => console.log('Firestore network enabled'))
+    .catch((err) => console.error('Failed to enable Firestore network:', err));
 
 // Note: Offline persistence disabled as it can cause initialization hangs
 // enableIndexedDbPersistence(db).catch((err) => {

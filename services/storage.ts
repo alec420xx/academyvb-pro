@@ -129,10 +129,10 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
         // Check for specific Firebase errors
         if (error.code === 'permission-denied') {
             throw new Error('Permission denied - Check Firestore security rules');
-        } else if (error.code === 'unavailable') {
-            throw new Error('Firebase unavailable - Check internet connection');
+        } else if (error.code === 'unavailable' || error.message?.includes('client is offline')) {
+            throw new Error('Firestore offline - Check: 1) Firestore security rules allow access, 2) Vercel domain is authorized in Firebase Console');
         } else if (error.message?.includes('timeout')) {
-            throw new Error('Connection timeout - Firebase may be unreachable');
+            throw new Error('Connection timeout - Check Firestore security rules and Firebase settings');
         }
 
         // Always throw - don't return defaults on error
