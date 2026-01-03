@@ -13,6 +13,7 @@ import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useUserData } from './hooks/useUserData';
 import { useAuth } from './contexts/AuthContext';
+import { ScoutPage } from './components/scout/ScoutPage';
 // import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 // Simple deep equal helper for now
@@ -20,10 +21,10 @@ const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.string
 
 export default function App() {
     // --- AUTH & DATA ---
-    const { user, teams, lineups, setTeams, setLineups, isLoading, error: dataError, loadComplete, retry } = useUserData();
+    const { user, teams, lineups, scoutOpponents, setTeams, setLineups, setScoutOpponents, isLoading, error: dataError, loadComplete, retry } = useUserData();
     const { signInWithGoogle, logout } = useAuth();
 
-    const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
+    const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export' | 'scout'>('board');
     const [gameMode, setGameMode] = useState<GameMode>('offense');
     const [currentRotation, setCurrentRotation] = useState(1);
     const [currentPhase, setCurrentPhase] = useState('receive1');
@@ -1419,6 +1420,10 @@ export default function App() {
                                 <Trophy size={16} />
                                 <span className="hidden lg:inline">Plan</span>
                             </button>
+                            <button onClick={() => setActiveTab('scout')} className={`flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'scout' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                <Shield size={16} />
+                                <span className="hidden lg:inline">Scout</span>
+                            </button>
                         </div>
                     </div>
 
@@ -1941,6 +1946,14 @@ export default function App() {
                     />
                 )}
 
+                {/* --- SCOUT VIEW --- */}
+                {activeTab === 'scout' && (
+                    <ScoutPage
+                        opponents={scoutOpponents}
+                        setOpponents={setScoutOpponents}
+                    />
+                )}
+
             </main >
 
             {/* --- MOBILE BOTTOM NAVIGATION --- */}
@@ -1949,6 +1962,7 @@ export default function App() {
                     <button onClick={() => setActiveTab('roster')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'roster' ? 'text-red-500' : 'text-slate-500'}`}><Users size={20} className={activeTab === 'roster' ? 'fill-current' : ''} /><span className="text-[10px] font-bold mt-1">Roster</span></button>
                     <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'board' ? 'text-red-500' : 'text-slate-500'}`}><CourtIcon size={20} /><span className="text-[10px] font-bold mt-1">Court</span></button>
                     <button onClick={() => { setActiveTab('export'); saveCurrentState(); }} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'export' ? 'text-red-500' : 'text-slate-500'}`}><Trophy size={20} /><span className="text-[10px] font-bold mt-1">Plan</span></button>
+                    <button onClick={() => setActiveTab('scout')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'scout' ? 'text-amber-500' : 'text-slate-500'}`}><Shield size={20} /><span className="text-[10px] font-bold mt-1">Scout</span></button>
                 </div>
             </div >
             {/* Ghost Player Token for Dragging */}

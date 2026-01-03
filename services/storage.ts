@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Team, Lineup } from '../types';
+import { Team, Lineup, ScoutOpponent } from '../types';
 
 // Simple single-document storage
 // All user data is stored in one document: users/{uid}
@@ -8,12 +8,14 @@ import { Team, Lineup } from '../types';
 export interface UserData {
     teams: Team[];
     lineups: Lineup[];
+    scoutOpponents: ScoutOpponent[];
     lastUpdated: number;
 }
 
 const DEFAULT_USER_DATA: UserData = {
     teams: [],
     lineups: [],
+    scoutOpponents: [],
     lastUpdated: Date.now()
 };
 
@@ -97,11 +99,13 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
                 const data = snapshot.data() as UserData;
                 console.log('loadUserData: Found data', {
                     teams: data.teams?.length || 0,
-                    lineups: data.lineups?.length || 0
+                    lineups: data.lineups?.length || 0,
+                    scoutOpponents: data.scoutOpponents?.length || 0
                 });
                 return {
                     teams: data.teams || [],
                     lineups: data.lineups || [],
+                    scoutOpponents: data.scoutOpponents || [],
                     lastUpdated: data.lastUpdated || Date.now()
                 };
             } else {
