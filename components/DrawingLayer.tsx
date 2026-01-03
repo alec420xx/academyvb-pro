@@ -83,6 +83,7 @@ export const DrawingLayer: React.FC<DrawingLayerProps> = ({
             y2={finalEnd.y}
             stroke={shape.color}
             strokeWidth={shape.strokeWidth}
+            strokeLinecap="butt"
             markerEnd={`url(#${markerId})`}
             style={commonProps.style}
           />

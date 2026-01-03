@@ -440,6 +440,18 @@ export default function App() {
     const createTeam = () => {
         const newTeam: Team = { id: generateId('team'), name: newItemName || 'New Team', roster: DEFAULT_ROSTER };
         setTeams([...teams, newTeam]);
+
+        // Auto-create a default lineup for the new team
+        const defaultLineup: Lineup = {
+            id: generateId('lineup'),
+            name: 'Starting Lineup',
+            teamId: newTeam.id,
+            rotations: {},
+            roster: DEFAULT_ROSTER
+        };
+        setLineups([...lineups, defaultLineup]);
+        setCurrentLineupId(defaultLineup.id);
+
         setNewItemName('');
         setIsTeamManagerOpen(false);
         switchTeam(newTeam.id);
