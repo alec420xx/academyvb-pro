@@ -171,8 +171,8 @@ export const Court: React.FC<CourtProps> = ({
                 // Relative Sizes
                 const headLen = 16 * s;
                 const headWidth = 14 * s; // Increased from 12 to 14
-                const lineWidth = Math.max(1, 3 * s);
 
+                // Draw line first (will be underneath arrowhead)
                 ctx.beginPath();
                 ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
 
@@ -192,20 +192,11 @@ export const Court: React.FC<CourtProps> = ({
                     }
                 }
 
-                // Stop the line short of the absolute tip so it doesn't protrude through the arrowhead
-                // Back off by head length plus a bit extra to account for line width
-                const backOff = headLen + (lineWidth / 2);
-                const stopX = last.x - Math.cos(angle) * backOff;
-                const stopY = last.y - Math.sin(angle) * backOff;
-
-                // Draw straight line to the BACK OFF point, not the tip
-                // Use 'butt' lineCap to prevent rounded cap extending beyond endpoint
-                ctx.lineCap = 'butt';
-                ctx.lineTo(stopX, stopY);
+                // Draw line all the way to the tip - arrowhead will cover it
+                ctx.lineTo(last.x, last.y);
                 ctx.stroke();
-                ctx.lineCap = 'round'; // Restore for other drawings
 
-                // Arrow Head at `last`
+                // Draw arrowhead AFTER line so it's on top
                 const tTip = { x: 0, y: 0 };
                 const tBackTop = { x: -headLen, y: -headWidth / 2 };
                 const tBackBot = { x: -headLen, y: headWidth / 2 };
