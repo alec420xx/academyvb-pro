@@ -938,51 +938,35 @@ export default function App() {
         const cy = ((y - rect.top) / rect.height) * 100;
 
         if (mode === 'move') {
-            // FIX: Always perform hit test on touch/click to check for UI buttons (move/delete)
-            // or new shape selections. Don't rely on 'hoveredElement' state alone.
+            // Always perform hit test on touch/click to check for UI buttons (move/delete)
             let hit = performHitTest(cx, cy, rect.width, rect.height);
 
-            // For mouse clicks, update hoveredElement before checking hit type
-            // This ensures delete/move buttons work on first click
-            if (e.type !== 'touchstart' && hit) {
-                setHoveredElement(hit);
-            }
-
-            // If no immediate hit, but we have a hover element, we might be clicking "off" it
-            // checking specifically for UI proximity or button clicks was done by performHitTest
-            // utilizing the current hoveredElement state internally.
-
-            if (!hit && e.type === 'touchstart') {
-                // If we missed everything, clear selection
+            // Check if clicking delete button first
+            if (hit && hit.type === 'delete') {
+                setPaths(prev => prev.filter((_, i) => i !== hit.index));
                 setHoveredElement(null);
-            } else if (e.type === 'touchstart') {
-                // Update hover on touch
-                setHoveredElement(hit);
+                saveCurrentState();
+                saveToHistory();
+                return;
             }
 
-            if (hit) {
-                if (hit.type === 'delete') {
-                    setPaths(prev => prev.filter((_, i) => i !== hit.index));
-                    setHoveredElement(null);
-                    saveCurrentState();
-                    saveToHistory();
-                    return;
-                }
-                if (hit.type === 'move-shape') {
-                    setSelectedShapeIndex(hit.index);
-                    saveToHistory();
-                    return;
-                }
-                if (hit.type === 'vertex') {
-                    setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
-                    saveToHistory();
-                    return;
-                }
-                if ((hit.type === 'shape' || hit.type === 'ui-proximity') && e.type === 'touchstart') {
-                    setHoveredElement(hit);
-                    return;
-                }
+            if (hit && hit.type === 'move-shape') {
+                setSelectedShapeIndex(hit.index);
+                saveToHistory();
+                return;
             }
+
+            if (hit && hit.type === 'vertex') {
+                setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
+                saveToHistory();
+                return;
+            }
+
+            if (hit && (hit.type === 'shape' || hit.type === 'ui-proximity')) {
+                setHoveredElement(hit);
+                if (e.type === 'touchstart') return;
+            }
+
             if (!hit && e.type === 'touchstart') setHoveredElement(null);
             setSelectedBenchPlayerId(null);
         }
@@ -1369,7 +1353,7 @@ export default function App() {
                     <div className="flex-1 flex justify-start items-center gap-2 lg:gap-3">
                         <div className="bg-black p-2 rounded-lg text-red-600"><ClubLogo size={24} /></div>
                         <div>
-                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.3</span></h1>
+                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.8</span></h1>
                             <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[400px]">
                                 {isEditingHeaderTeam ? (
                                     <input
@@ -1486,7 +1470,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     <div className="bg-black p-1.5 rounded-md text-red-600"><ClubLogo size={18} /></div>
                     <div className="leading-none">
-                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.3</span></div>
+                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.8</span></div>
                         <div className="flex items-center gap-1 mt-0.5">
                             <div className="text-[10px] text-slate-400 font-bold truncate max-w-[100px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
                             <span className="text-[8px] text-slate-600">/</span>
