@@ -170,14 +170,18 @@ export const Court: React.FC<CourtProps> = ({
 
                 // Relative Sizes
                 const headLen = 16 * s;
-                const headWidth = 14 * s; // Increased from 12 to 14
+                const headWidth = 14 * s;
+
+                // Arrow base is at 'last' (mouse position), tip extends forward
+                const tipX = last.x + Math.cos(angle) * headLen;
+                const tipY = last.y + Math.sin(angle) * headLen;
+
+                // Draw line with butt cap to prevent extension
+                const originalLineCap = ctx.lineCap;
+                ctx.lineCap = 'butt';
 
                 ctx.beginPath();
                 ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
-
-                // Draw smooth curve to the point just before the end
-                let lastMidX = drawPoints[0].x;
-                let lastMidY = drawPoints[0].y;
 
                 if (drawPoints.length > 2) {
                     for (let i = 1; i < drawPoints.length - 1; i++) {
@@ -186,25 +190,19 @@ export const Court: React.FC<CourtProps> = ({
                         const midX = (p1.x + p2.x) / 2;
                         const midY = (p1.y + p2.y) / 2;
                         ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
-                        lastMidX = midX;
-                        lastMidY = midY;
                     }
                 }
 
-                // Stop the line short of the absolute tip so it doesn't protrude through the arrowhead
-                // We back off by about 80% of the head length
-                const backOff = headLen * 0.8;
-                const stopX = last.x - Math.cos(angle) * backOff;
-                const stopY = last.y - Math.sin(angle) * backOff;
-
-                // Draw straight line to the BACK OFF point, not the tip
-                ctx.lineTo(stopX, stopY);
+                // Draw line to where mouse released (arrowhead base)
+                ctx.lineTo(last.x, last.y);
                 ctx.stroke();
 
-                // Arrow Head at `last`
-                const tTip = { x: 0, y: 0 };
-                const tBackTop = { x: -headLen, y: -headWidth / 2 };
-                const tBackBot = { x: -headLen, y: headWidth / 2 };
+                ctx.lineCap = originalLineCap;
+
+                // Draw arrowhead: tip is forward from 'last', base is at 'last'
+                const tTip = { x: headLen, y: 0 };  // Tip extends forward
+                const tBackTop = { x: 0, y: -headWidth / 2 };  // Base at mouse position
+                const tBackBot = { x: 0, y: headWidth / 2 };
 
                 const rotate = (p: { x: number, y: number }) => ({
                     x: p.x * Math.cos(angle) - p.y * Math.sin(angle) + last.x,
