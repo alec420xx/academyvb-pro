@@ -192,8 +192,8 @@ export const Court: React.FC<CourtProps> = ({
                 }
 
                 // Stop the line short of the absolute tip so it doesn't protrude through the arrowhead
-                // We back off by about 80% of the head length
-                const backOff = headLen * 0.8;
+                // We back off by the full head length to prevent line showing through
+                const backOff = headLen;
                 const stopX = last.x - Math.cos(angle) * backOff;
                 const stopY = last.y - Math.sin(angle) * backOff;
 

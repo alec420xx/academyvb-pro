@@ -205,6 +205,7 @@ export default function App() {
                 const moveX = center.x - spacing, moveY = center.y;
                 const distToDel = Math.sqrt(Math.pow(absX - delX, 2) + Math.pow(absY - delY, 2));
                 const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
+                console.log('Checking UI buttons - distToDel:', distToDel, 'btnRadius:', btnRadius, 'distToMove:', distToMove);
                 if (distToDel < btnRadius) return { type: 'delete', index: hoveredElement.index };
                 if (distToMove < btnRadius) return { type: 'move-shape', index: hoveredElement.index };
                 const distToCenter = Math.sqrt(Math.pow(absX - center.x, 2) + Math.pow(absY - center.y, 2));
@@ -940,9 +941,11 @@ export default function App() {
         if (mode === 'move') {
             // Always perform hit test on touch/click to check for UI buttons (move/delete)
             let hit = performHitTest(cx, cy, rect.width, rect.height);
+            console.log('Click detected - hit:', hit, 'hoveredElement:', hoveredElement);
 
             // Check if clicking delete button first
             if (hit && hit.type === 'delete') {
+                console.log('Deleting shape at index:', hit.index);
                 setPaths(prev => prev.filter((_, i) => i !== hit.index));
                 setHoveredElement(null);
                 saveCurrentState();
