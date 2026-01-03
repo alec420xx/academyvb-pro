@@ -197,7 +197,8 @@ export const Court: React.FC<CourtProps> = ({
                 ctx.stroke();
 
                 // Draw arrowhead AFTER line so it's on top
-                const tTip = { x: 0, y: 0 };
+                // Make tip slightly extended to ensure it covers any line protrusion
+                const tTip = { x: 2, y: 0 }; // Extend tip slightly forward
                 const tBackTop = { x: -headLen, y: -headWidth / 2 };
                 const tBackBot = { x: -headLen, y: headWidth / 2 };
 
@@ -210,6 +211,18 @@ export const Court: React.FC<CourtProps> = ({
                 const r2 = rotate(tBackTop);
                 const r3 = rotate(tBackBot);
 
+                // First, draw a slightly larger background-colored triangle to cover the line
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                ctx.moveTo(r1.x, r1.y);
+                ctx.lineTo(r2.x, r2.y);
+                ctx.lineTo(r3.x, r3.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // Then draw the actual arrowhead
                 ctx.beginPath();
                 ctx.moveTo(r1.x, r1.y);
                 ctx.lineTo(r2.x, r2.y);
