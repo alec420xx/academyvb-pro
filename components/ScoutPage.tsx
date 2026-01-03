@@ -27,6 +27,7 @@ export function ScoutPage({
     const [currentSession, setCurrentSession] = useState<ScoutingSession | null>(null);
     const [pointTrackMode, setPointTrackMode] = useState<'won' | 'lost'>('won');
     const [selectedPlayerForNotes, setSelectedPlayerForNotes] = useState<string | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const selectedTeam = scoutedTeams.find(t => t.id === selectedTeamId);
     const currentRotationData = currentSession?.rotations.find(r => r.rotation === currentRotation);
@@ -77,6 +78,51 @@ export function ScoutPage({
         setShowNewTeamDialog(false);
     };
 
+    const handleDeleteTeam = () => {
+        if (!selectedTeamId) return;
+
+        // Delete team
+        setScoutedTeams(scoutedTeams.filter(t => t.id !== selectedTeamId));
+
+        // Delete all sessions for this team
+        setScoutingSessions(scoutingSessions.filter(s => s.teamId !== selectedTeamId));
+
+        setSelectedTeamId(null);
+        setShowDeleteConfirm(false);
+    };
+
+    // Rotate players clockwise (for volleyball rotation)
+    const rotatePlayersClockwise = (players: ScoutedPlayer[]): ScoutedPlayer[] => {
+        if (players.length !== 6) return players;
+        // In volleyball, position 1 -> 6, 6 -> 5, 5 -> 4, 4 -> 3, 3 -> 2, 2 -> 1
+        // This means the player at index 0 goes to index 5, index 1 to 0, etc.
+        return [players[1], players[2], players[3], players[4], players[5], players[0]];
+    };
+
+    // Auto-populate other rotations when rotation 1 is complete
+    const autoPopulateRotations = () => {
+        if (!currentSession) return;
+
+        const rotation1 = currentSession.rotations.find(r => r.rotation === 1);
+        if (!rotation1 || rotation1.players.length !== 6) return;
+
+        let currentPlayers = rotation1.players;
+        const updatedRotations = currentSession.rotations.map(r => {
+            if (r.rotation === 1) return r; // Keep rotation 1 as is
+
+            // Rotate players for each subsequent rotation
+            currentPlayers = rotatePlayersClockwise(currentPlayers);
+
+            // Only auto-populate if the rotation is empty
+            if (r.players.length === 0) {
+                return { ...r, players: [...currentPlayers] };
+            }
+            return r;
+        });
+
+        setCurrentSession({ ...currentSession, rotations: updatedRotations });
+    };
+
     const addPlayerToLineup = (playerNumber: string, position: string) => {
         if (!currentSession || !currentRotationData) return;
 
@@ -94,7 +140,14 @@ export function ScoutPage({
                 : r
         );
 
-        setCurrentSession({ ...currentSession, rotations: updatedRotations });
+        const newSession = { ...currentSession, rotations: updatedRotations };
+        setCurrentSession(newSession);
+
+        // If we just completed rotation 1 lineup (6 players), auto-populate other rotations
+        if (currentRotation === 1 && currentRotationData.players.length + 1 === 6) {
+            // Use setTimeout to ensure state updates first
+            setTimeout(() => autoPopulateRotations(), 100);
+        }
     };
 
     const removePlayer = (playerNumber: string) => {
@@ -241,13 +294,24 @@ export function ScoutPage({
                                     </option>
                                 ))}
                             </select>
-                            <button
-                                onClick={() => setShowNewTeamDialog(true)}
-                                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-colors"
-                            >
-                                <Plus size={20} />
-                                New Team
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowNewTeamDialog(true)}
+                                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-colors"
+                                >
+                                    <Plus size={20} />
+                                    New Team
+                                </button>
+                                {selectedTeamId && (
+                                    <button
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors"
+                                        title="Delete Team"
+                                    >
+                                        <Trash2 size={20} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -542,6 +606,32 @@ export function ScoutPage({
                                         Create Team
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Delete Team Confirmation */}
+                {showDeleteConfirm && selectedTeam && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
+                        <div className="bg-slate-800 border border-slate-600 rounded-lg p-6 max-w-md w-full">
+                            <h3 className="text-white text-lg font-semibold mb-4">Delete Team?</h3>
+                            <p className="text-slate-300 mb-6">
+                                Are you sure you want to delete <span className="font-bold text-white">{selectedTeam.name}</span>? This will also delete all scouting sessions for this team. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteTeam}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                                >
+                                    Delete Team
+                                </button>
                             </div>
                         </div>
                     </div>
