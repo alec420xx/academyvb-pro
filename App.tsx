@@ -55,6 +55,7 @@ export default function App() {
     const [editName, setEditName] = useState('');
     const [isEditingHeaderTeam, setIsEditingHeaderTeam] = useState(false);
     const [isEditingHeaderLineup, setIsEditingHeaderLineup] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{type: 'team' | 'lineup', id: string, name: string} | null>(null);
 
     const [roster, setRoster] = useState<Player[]>(DEFAULT_ROSTER);
     const [savedRotations, setSavedRotations] = useState<Record<string, SavedRotationData>>({});
@@ -472,12 +473,29 @@ export default function App() {
     const deleteTeam = (id: string) => {
         if (teams.length <= 1) return alert("Cannot delete last team.");
         const team = teams.find(t => t.id === id);
-        if (!confirm(`Delete "${team?.name}"? This will also delete all lineups for this team.`)) return;
-        const newTeams = teams.filter(t => t.id !== id);
-        const newLineups = lineups.filter(l => l.teamId !== id);
-        setTeams(newTeams);
-        setLineups(newLineups);
-        if (currentTeamId === id) switchTeam(newTeams[0].id);
+        if (!team) return;
+        setDeleteConfirm({ type: 'team', id, name: team.name });
+    };
+
+    const confirmDelete = () => {
+        if (!deleteConfirm) return;
+
+        if (deleteConfirm.type === 'team') {
+            const newTeams = teams.filter(t => t.id !== deleteConfirm.id);
+            const newLineups = lineups.filter(l => l.teamId !== deleteConfirm.id);
+            setTeams(newTeams);
+            setLineups(newLineups);
+            if (currentTeamId === deleteConfirm.id) switchTeam(newTeams[0].id);
+        } else if (deleteConfirm.type === 'lineup') {
+            const newLineups = lineups.filter(l => l.id !== deleteConfirm.id);
+            setLineups(newLineups);
+            const currentTeamLineups = newLineups.filter(l => l.teamId === currentTeamId);
+            if (currentLineupId === deleteConfirm.id && currentTeamLineups.length > 0) {
+                switchLineup(currentTeamLineups[0].id);
+            }
+        }
+
+        setDeleteConfirm(null);
     };
 
     const renameTeam = (id: string, newName: string) => {
@@ -540,14 +558,8 @@ export default function App() {
         const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
         if (teamLineups.length <= 1) return alert("Must have at least one lineup.");
         const lineup = lineups.find(l => l.id === id);
-        if (!confirm(`Delete "${lineup?.name}"?`)) return;
-        const newLineups = lineups.filter(l => l.id !== id);
-        setLineups(newLineups);
-
-        if (currentLineupId === id) {
-            const remaining = newLineups.filter(l => l.teamId === currentTeamId);
-            if (remaining.length > 0) loadLineup(remaining[0].id, newLineups);
-        }
+        if (!lineup) return;
+        setDeleteConfirm({ type: 'lineup', id, name: lineup.name });
     };
 
     const duplicateLineup = (id: string) => {
@@ -1081,6 +1093,13 @@ export default function App() {
         setPaths(previousState.paths);
         setActivePlayerIds(previousState.activePlayers);
         setHistory(prev => prev.slice(0, -1));
+
+        // Persist the undo action
+        saveCurrentState({
+            positions: previousState.playerPositions,
+            paths: previousState.paths,
+            activePlayers: previousState.activePlayers
+        });
     };
 
     const redo = () => {
@@ -1096,6 +1115,13 @@ export default function App() {
         setPaths(nextState.paths);
         setActivePlayerIds(nextState.activePlayers);
         setFuture(prev => prev.slice(1));
+
+        // Persist the redo action
+        saveCurrentState({
+            positions: nextState.playerPositions,
+            paths: nextState.paths,
+            activePlayers: nextState.activePlayers
+        });
     };
 
     // Keyboard shortcuts
@@ -1610,6 +1636,7 @@ export default function App() {
                                         <textarea
                                             value={currentNotes}
                                             onChange={(e) => setCurrentNotes(e.target.value)}
+                                            onBlur={() => saveCurrentState({ notes: currentNotes })}
                                             className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-sm text-white resize-none h-24 focus:outline-none focus:border-slate-400"
                                             placeholder="Add notes for this phase..."
                                         />
@@ -1969,6 +1996,35 @@ export default function App() {
                     />
                 )
             }
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]">
+                    <div className="bg-slate-800 border border-slate-600 rounded-lg p-6 max-w-md">
+                        <h3 className="text-white text-lg font-semibold mb-3">
+                            Confirm Delete
+                        </h3>
+                        <p className="text-slate-300 mb-6">
+                            Are you sure you want to delete {deleteConfirm.type} "{deleteConfirm.name}"?
+                            {deleteConfirm.type === 'team' && ' This will also delete all associated lineups.'}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }
