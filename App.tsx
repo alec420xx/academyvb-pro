@@ -930,6 +930,12 @@ export default function App() {
             // or new shape selections. Don't rely on 'hoveredElement' state alone.
             let hit = performHitTest(cx, cy, rect.width, rect.height);
 
+            // For mouse clicks, update hoveredElement before checking hit type
+            // This ensures delete/move buttons work on first click
+            if (e.type !== 'touchstart' && hit) {
+                setHoveredElement(hit);
+            }
+
             // If no immediate hit, but we have a hover element, we might be clicking "off" it
             // checking specifically for UI proximity or button clicks was done by performHitTest
             // utilizing the current hoveredElement state internally.
@@ -947,6 +953,7 @@ export default function App() {
                     setPaths(prev => prev.filter((_, i) => i !== hit.index));
                     setHoveredElement(null);
                     saveCurrentState();
+                    saveToHistory();
                     return;
                 }
                 if (hit.type === 'move-shape') {
