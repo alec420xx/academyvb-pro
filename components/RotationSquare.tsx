@@ -21,9 +21,12 @@ export const RotationSquare: React.FC<RotationSquareProps> = ({ rotation, roster
   const renderCell = (zoneId: number, cellBorderClasses: string) => {
       const p = zones[zoneId];
       return (
-          <div className={`flex flex-col items-center justify-center ${cellBorderClasses} bg-white h-full p-1 w-full relative z-0`}>
-              <div className="font-black text-slate-900 text-base leading-tight text-center">{p ? p.number : '-'}</div>
-              <div className="text-[9px] font-bold text-slate-500 uppercase leading-tight text-center">{p ? p.role : ''}</div>
+          <div
+              className={`${cellBorderClasses} bg-white h-full w-full relative z-0`}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2px' }}
+          >
+              <div className="font-black text-slate-900 text-base text-center" style={{ lineHeight: '1.1' }}>{p ? p.number : '-'}</div>
+              <div className="font-bold text-slate-500 uppercase text-center" style={{ fontSize: '9px', lineHeight: '1.1' }}>{p ? p.role : ''}</div>
           </div>
       );
   };
