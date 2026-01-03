@@ -171,6 +171,7 @@ export const Court: React.FC<CourtProps> = ({
                 // Relative Sizes
                 const headLen = 16 * s;
                 const headWidth = 14 * s; // Increased from 12 to 14
+                const lineWidth = Math.max(1, 3 * s);
 
                 ctx.beginPath();
                 ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
@@ -192,8 +193,8 @@ export const Court: React.FC<CourtProps> = ({
                 }
 
                 // Stop the line short of the absolute tip so it doesn't protrude through the arrowhead
-                // We back off by the full head length to prevent line showing through
-                const backOff = headLen;
+                // Back off by head length plus a bit extra to account for line width
+                const backOff = headLen + (lineWidth / 2);
                 const stopX = last.x - Math.cos(angle) * backOff;
                 const stopY = last.y - Math.sin(angle) * backOff;
 
