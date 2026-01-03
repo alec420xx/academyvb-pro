@@ -37,8 +37,8 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
 
   // Add explicit size for small tokens (export/print)
   if (small) {
-      positionStyle.width = '16px';
-      positionStyle.height = '16px';
+      positionStyle.width = '24px';
+      positionStyle.height = '24px';
   }
 
   if (x !== undefined && !isGhost) {
@@ -46,9 +46,9 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       positionStyle.top = `${y}%`;
 
       if (small) {
-          // Use margins for export stability (half of 16px = 8px)
-          positionStyle.marginLeft = '-8px';
-          positionStyle.marginTop = '-8px';
+          // Use margins for export stability (half of 24px = 12px)
+          positionStyle.marginLeft = '-12px';
+          positionStyle.marginTop = '-12px';
           positionStyle.transform = 'none';
       } else {
           // Use transform3d for smooth dragging interactions and SAFARI fixes
@@ -88,16 +88,18 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - use line-height centering for html2canvas
-        // Container is 16px, line-height 16px centers text vertically
+        // Small token (print view) - 24px container with padding for centering
+        // Using paddingTop to push text down for visual centering in html2canvas
         <span
           className="font-black pointer-events-none select-none"
           style={{
             display: 'block',
-            width: '100%',
+            width: '24px',
+            height: '24px',
             textAlign: 'center',
-            fontSize: '9px',
-            lineHeight: '16px'
+            fontSize: '11px',
+            paddingTop: '5px',
+            boxSizing: 'border-box'
           }}
         >
           {player.number}

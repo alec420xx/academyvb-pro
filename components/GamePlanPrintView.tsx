@@ -102,7 +102,7 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                     `}>
                         <div className="w-36 flex-none flex flex-col items-center justify-center gap-2 border-r border-slate-200 pr-3">
                             <div className="bg-slate-900 text-white w-10 h-10 rounded-lg">
-                                <span style={{ display: 'block', width: '100%', textAlign: 'center', fontWeight: 900, fontSize: '18px', lineHeight: '40px' }}>R{rot}</span>
+                                <span style={{ display: 'block', width: '40px', height: '40px', textAlign: 'center', fontWeight: 900, fontSize: '18px', paddingTop: '9px', boxSizing: 'border-box' }}>R{rot}</span>
                             </div>
                             <div className="w-28 h-28">
                                 <RotationSquare rotation={rot} roster={roster} />
