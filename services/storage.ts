@@ -74,12 +74,16 @@ const migrateOldData = async (userId: string): Promise<UserData | null> => {
  */
 export const loadUserData = async (userId: string): Promise<UserData> => {
     console.log('loadUserData: Loading for user', userId);
+    console.log('loadUserData: Online status:', navigator.onLine);
 
     try {
         // Add timeout to prevent hanging if Firebase is slow/offline
-        // Increased to 30s to allow for migration and slow connections
+        // Using 10s timeout - if it takes longer, something is wrong
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Load timeout - check your internet connection')), 30000);
+            setTimeout(() => {
+                console.error('loadUserData: TIMEOUT after 10 seconds');
+                reject(new Error('Load timeout after 10s - possible Firestore permission issue or network problem'));
+            }, 10000);
         });
 
         const loadPromise = async (): Promise<UserData> => {
@@ -115,7 +119,22 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
         // Race the load (including migration) against the timeout
         return await Promise.race([loadPromise(), timeoutPromise]);
     } catch (error: any) {
-        console.error('loadUserData: Error', error.message);
+        console.error('loadUserData: Error details:', {
+            message: error.message,
+            code: error.code,
+            name: error.name,
+            stack: error.stack
+        });
+
+        // Check for specific Firebase errors
+        if (error.code === 'permission-denied') {
+            throw new Error('Permission denied - Check Firestore security rules');
+        } else if (error.code === 'unavailable') {
+            throw new Error('Firebase unavailable - Check internet connection');
+        } else if (error.message?.includes('timeout')) {
+            throw new Error('Connection timeout - Firebase may be unreachable');
+        }
+
         // Always throw - don't return defaults on error
         // This prevents the app from showing "create team" and overwriting existing data
         throw error;

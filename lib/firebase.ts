@@ -18,15 +18,24 @@ const firebaseConfig = {
 console.log('Firebase config check:', {
     hasApiKey: !!firebaseConfig.apiKey,
     hasProjectId: !!firebaseConfig.projectId,
-    projectId: firebaseConfig.projectId
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain
 });
 
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.error('CRITICAL: Firebase environment variables are missing!', firebaseConfig);
+    throw new Error('Firebase configuration is incomplete - check environment variables');
 }
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app;
+try {
+    app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized successfully');
+} catch (error: any) {
+    console.error('CRITICAL: Firebase initialization failed:', error);
+    throw error;
+}
 
 // Initialize Services
 export const auth = getAuth(app);
