@@ -170,15 +170,20 @@ export const Court: React.FC<CourtProps> = ({
 
                 // Relative Sizes
                 const headLen = 16 * s;
-                const headWidth = 14 * s; // Increased from 12 to 14
+                const headWidth = 14 * s;
+                const lineWidth = Math.max(1, 3 * s);
 
-                // Draw line first (will be underneath arrowhead)
+                // Calculate stop point - back off by headLen PLUS half lineWidth (for round cap)
+                const stopDistance = headLen + (lineWidth / 2);
+                const stopX = last.x - Math.cos(angle) * stopDistance;
+                const stopY = last.y - Math.sin(angle) * stopDistance;
+
+                // Draw line with butt cap to prevent extension
+                const originalLineCap = ctx.lineCap;
+                ctx.lineCap = 'butt';
+
                 ctx.beginPath();
                 ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
-
-                // Draw smooth curve to the point just before the end
-                let lastMidX = drawPoints[0].x;
-                let lastMidY = drawPoints[0].y;
 
                 if (drawPoints.length > 2) {
                     for (let i = 1; i < drawPoints.length - 1; i++) {
@@ -187,18 +192,17 @@ export const Court: React.FC<CourtProps> = ({
                         const midX = (p1.x + p2.x) / 2;
                         const midY = (p1.y + p2.y) / 2;
                         ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
-                        lastMidX = midX;
-                        lastMidY = midY;
                     }
                 }
 
-                // Draw line all the way to the tip - arrowhead will cover it
-                ctx.lineTo(last.x, last.y);
+                // Draw to stop point, not all the way to tip
+                ctx.lineTo(stopX, stopY);
                 ctx.stroke();
 
-                // Draw arrowhead AFTER line so it's on top
-                // Make tip slightly extended to ensure it covers any line protrusion
-                const tTip = { x: 2, y: 0 }; // Extend tip slightly forward
+                ctx.lineCap = originalLineCap;
+
+                // Draw arrowhead
+                const tTip = { x: 0, y: 0 };
                 const tBackTop = { x: -headLen, y: -headWidth / 2 };
                 const tBackBot = { x: -headLen, y: headWidth / 2 };
 
@@ -211,18 +215,6 @@ export const Court: React.FC<CourtProps> = ({
                 const r2 = rotate(tBackTop);
                 const r3 = rotate(tBackBot);
 
-                // First, draw a slightly larger background-colored triangle to cover the line
-                ctx.save();
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.beginPath();
-                ctx.moveTo(r1.x, r1.y);
-                ctx.lineTo(r2.x, r2.y);
-                ctx.lineTo(r3.x, r3.y);
-                ctx.closePath();
-                ctx.fill();
-                ctx.restore();
-
-                // Then draw the actual arrowhead
                 ctx.beginPath();
                 ctx.moveTo(r1.x, r1.y);
                 ctx.lineTo(r2.x, r2.y);
