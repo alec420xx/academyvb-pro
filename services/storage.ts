@@ -75,36 +75,42 @@ const migrateOldData = async (userId: string): Promise<UserData | null> => {
 export const loadUserData = async (userId: string): Promise<UserData> => {
     console.log('loadUserData: Loading for user', userId);
 
-    // Add timeout to prevent hanging if Firebase is slow/offline
-    const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Load timeout')), 15000);
-    });
-
     try {
-        const userRef = doc(db, 'users', userId);
-        const snapshot = await Promise.race([getDoc(userRef), timeoutPromise]);
+        // Add timeout to prevent hanging if Firebase is slow/offline
+        // Increased to 30s to allow for migration and slow connections
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Load timeout - check your internet connection')), 30000);
+        });
 
-        if (snapshot.exists()) {
-            const data = snapshot.data() as UserData;
-            console.log('loadUserData: Found data', {
-                teams: data.teams?.length || 0,
-                lineups: data.lineups?.length || 0
-            });
-            return {
-                teams: data.teams || [],
-                lineups: data.lineups || [],
-                lastUpdated: data.lastUpdated || Date.now()
-            };
-        } else {
-            // No new-format data found - check for old data to migrate
-            console.log('loadUserData: No new-format data, checking for old data...');
-            const migratedData = await migrateOldData(userId);
-            if (migratedData) {
-                return migratedData;
+        const loadPromise = async (): Promise<UserData> => {
+            const userRef = doc(db, 'users', userId);
+            const snapshot = await getDoc(userRef);
+
+            if (snapshot.exists()) {
+                const data = snapshot.data() as UserData;
+                console.log('loadUserData: Found data', {
+                    teams: data.teams?.length || 0,
+                    lineups: data.lineups?.length || 0
+                });
+                return {
+                    teams: data.teams || [],
+                    lineups: data.lineups || [],
+                    lastUpdated: data.lastUpdated || Date.now()
+                };
+            } else {
+                // No new-format data found - check for old data to migrate
+                console.log('loadUserData: No new-format data, checking for old data...');
+                const migratedData = await migrateOldData(userId);
+                if (migratedData) {
+                    return migratedData;
+                }
+                console.log('loadUserData: No data found, returning defaults');
+                return DEFAULT_USER_DATA;
             }
-            console.log('loadUserData: No data found, returning defaults');
-            return DEFAULT_USER_DATA;
-        }
+        };
+
+        // Race the load (including migration) against the timeout
+        return await Promise.race([loadPromise(), timeoutPromise]);
     } catch (error: any) {
         console.error('loadUserData: Error', error.message);
         // Always throw - don't return defaults on error
