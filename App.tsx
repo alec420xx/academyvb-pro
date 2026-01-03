@@ -249,20 +249,6 @@ export default function App() {
         return null;
     };
 
-    // --- LOCAL STORAGE & CLOUD SYNC ---
-    // --- LOCAL STORAGE & CLOUD SYNC ---
-    useEffect(() => {
-        migrateStorage();
-
-        // Initial Load for offline/first render support
-        const load = async () => {
-            // We still do one initial load check for safety/offline
-            // but the subscription above handles the live updates
-            // so we don't need to be too aggressive here.
-        };
-        load();
-    }, [user]);
-
     // Ensure active lineup is selected when team changes or lineups load
     useEffect(() => {
         if (!currentTeamId) return;
@@ -344,66 +330,6 @@ export default function App() {
 
         return newRotations;
     };
-
-
-    // DIRTY CHECK EFFECT (Replaces Auto-Save)
-    // Checks if current state matches saved state to update interface
-    useEffect(() => {
-        if (!currentLineupId) return;
-
-        const checkDirty = () => {
-            const key = getStorageKey(currentRotation, currentPhase, gameMode);
-            const saved = savedRotations[key];
-
-            // If we have no saved data for this view, and we are using defaults, it might count as 'saved' or 'unsaved'
-            // But usually if we just loaded, it should match.
-
-            const currentData = {
-                positions: playerPositions,
-                paths: paths,
-                activePlayers: activePlayerIds,
-                notes: currentNotes
-            };
-
-            // If saved exists, we compare. If not, we definitely differ (unsaved).
-            // We need to be careful about "undefined" paths in saved vs empty array in current
-            if (!saved) {
-                // If we are locally just viewing defaults and haven't saved, it's effectively unsaved if we care about persistence
-                // But to avoid annoyance, maybe only if we deviate from defaults? 
-                // Let's stick to: if it's not in savedRotations, it's unsaved.
-                setSaveStatus('unsaved');
-                return;
-            }
-
-            const cleanSaved = {
-                positions: saved.positions,
-                paths: saved.paths || [],
-                activePlayers: saved.activePlayers,
-                notes: saved.notes || ''
-            };
-
-            // Normalize current paths to empty array if null
-            const cleanCurrent = {
-                ...currentData,
-                paths: currentData.paths || [],
-                notes: currentData.notes || ''
-            };
-
-            if (!deepEqual(cleanSaved.positions, cleanCurrent.positions) ||
-                !deepEqual(cleanSaved.paths, cleanCurrent.paths) ||
-                !deepEqual(cleanSaved.activePlayers, cleanCurrent.activePlayers) ||
-                cleanSaved.notes !== cleanCurrent.notes) {
-                setSaveStatus('unsaved');
-            } else {
-                setSaveStatus('saved');
-            }
-        };
-
-        // Debounce slightly to avoid flicker on load
-        const timer = setTimeout(checkDirty, 200);
-        return () => clearTimeout(timer);
-
-    }, [playerPositions, paths, activePlayerIds, currentNotes, savedRotations, currentRotation, currentPhase, gameMode]);
 
     // --- REAL-TIME VIEW SYNC ---
     // Update active view when cloud/local storage updates (via savedRotations)
