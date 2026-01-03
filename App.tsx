@@ -178,6 +178,11 @@ export default function App() {
         const absX = (cx / 100) * width;
         const absY = (cy / 100) * height;
 
+        // Scale factor to match Court.tsx rendering
+        const s = width / 600;
+        const btnRadius = 12 * s;
+        const spacing = 18 * s;
+
         // 1. Check UI Controls
         if (hoveredElement && hoveredElement.type !== 'vertex') {
             const path = paths[hoveredElement.index];
@@ -195,15 +200,14 @@ export default function App() {
                 } else {
                     center = getCentroid(drawPoints);
                 }
-                const spacing = 18;
                 const delX = center.x + spacing, delY = center.y;
                 const moveX = center.x - spacing, moveY = center.y;
                 const distToDel = Math.sqrt(Math.pow(absX - delX, 2) + Math.pow(absY - delY, 2));
                 const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
-                if (distToDel < 15) return { type: 'delete', index: hoveredElement.index };
-                if (distToMove < 15) return { type: 'move-shape', index: hoveredElement.index };
+                if (distToDel < btnRadius) return { type: 'delete', index: hoveredElement.index };
+                if (distToMove < btnRadius) return { type: 'move-shape', index: hoveredElement.index };
                 const distToCenter = Math.sqrt(Math.pow(absX - center.x, 2) + Math.pow(absY - center.y, 2));
-                if (distToCenter < 50) return { type: 'ui-proximity', index: hoveredElement.index };
+                if (distToCenter < 50 * s) return { type: 'ui-proximity', index: hoveredElement.index };
             }
         }
 
