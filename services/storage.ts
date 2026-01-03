@@ -57,6 +57,7 @@ const migrateOldData = async (userId: string): Promise<UserData | null> => {
         const newData: UserData = {
             teams,
             lineups,
+            scoutOpponents: [],
             lastUpdated: Date.now()
         };
 
@@ -152,7 +153,8 @@ export const saveUserData = async (userId: string, data: UserData): Promise<void
     try {
         console.log('saveUserData: Saving for user', userId, {
             teams: data.teams?.length || 0,
-            lineups: data.lineups?.length || 0
+            lineups: data.lineups?.length || 0,
+            scoutOpponents: data.scoutOpponents?.length || 0
         });
         const userRef = doc(db, 'users', userId);
         await setDoc(userRef, {

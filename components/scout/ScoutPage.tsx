@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { Plus, ChevronDown, Users, Target, BarChart3, Settings } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Plus, ChevronDown, Users, Target, BarChart3 } from 'lucide-react';
 import { ScoutOpponent, ScoutSet, ScoutPlayer, DotType, PassGrade, CourtDot, PassEvent, AttackEvent, PlayerPosition } from '../../types';
 import { generateId, calculateScoutRotationPositions } from '../../utils';
-import { SCOUT_DOT_COLORS, SCOUT_DOT_LABELS } from '../../constants';
 import { OpponentManager } from './OpponentManager';
 import { SetManager } from './SetManager';
-import { ScoutCourt } from './ScoutCourt';
+import { ScoutLineupSheet } from './ScoutLineupSheet';
+import { ScoutFullCourt } from './ScoutFullCourt';
 import { ScoutToolbar } from './ScoutToolbar';
 import { ScoutStats } from './ScoutStats';
 
@@ -133,18 +133,36 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
     }, [currentOpponent, updateOpponent]);
 
     // === LINEUP & ROTATION ===
-    const setStartingLineup = useCallback((playerIds: string[]) => {
+    /**
+     * Set the starting lineup from the lineup sheet.
+     * playerIds are in standard order: zone 1, 6, 5, 4, 3, 2
+     * declaredRotation is what rotation the user observed this lineup in
+     */
+    const setStartingLineup = useCallback((playerIds: string[], declaredRotation: number) => {
         if (!currentSet || playerIds.length !== 6) return;
 
-        // Calculate initial positions for R1
-        const positions = calculateScoutRotationPositions(playerIds, 1);
+        // Calculate positions for all 6 rotations based on declared rotation
+        const rotations: Record<number, { positions: Record<string, PlayerPosition>; manuallyAdjusted: boolean }> = {};
+
+        for (let rot = 1; rot <= 6; rot++) {
+            // Calculate the offset from declared rotation
+            // If declared is R3 and we want R1, we need to "reverse rotate" by 2
+            const offset = (rot - declaredRotation + 6) % 6;
+
+            // Reorder the lineup based on offset
+            const rotatedLineup = playerIds.map((_, idx) => {
+                const newIdx = (idx + offset) % 6;
+                return playerIds[newIdx];
+            });
+
+            const positions = calculateScoutRotationPositions(rotatedLineup, 1);
+            rotations[rot] = { positions, manuallyAdjusted: false };
+        }
 
         updateCurrentSet({
             startingLineup: playerIds,
-            currentRotation: 1,
-            rotations: {
-                1: { positions, manuallyAdjusted: false }
-            }
+            currentRotation: declaredRotation,
+            rotations
         });
     }, [currentSet, updateCurrentSet]);
 
@@ -154,11 +172,12 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
         // Check if we have saved positions for this rotation
         const existingRotation = currentSet.rotations[newRotation];
 
-        if (existingRotation && existingRotation.manuallyAdjusted) {
-            // Use existing manually adjusted positions
+        if (existingRotation) {
+            // Use existing positions (either calculated or manually adjusted)
             updateCurrentSet({ currentRotation: newRotation });
         } else {
-            // Calculate new positions
+            // This shouldn't happen if setStartingLineup was called correctly
+            // But fall back to calculating
             const positions = calculateScoutRotationPositions(currentSet.startingLineup, newRotation);
             updateCurrentSet({
                 currentRotation: newRotation,
@@ -219,23 +238,6 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
         });
 
         setSelectedPlayerId(null);
-    }, [currentSet, updateCurrentSet]);
-
-    const addAttackEvent = useCallback((hitterId: string, fromPos: PlayerPosition, toPos: PlayerPosition, outcome: AttackEvent['outcome']) => {
-        if (!currentSet) return;
-
-        const newEvent: AttackEvent = {
-            id: generateId('atk'),
-            timestamp: Date.now(),
-            hitterId,
-            attackFromPosition: fromPos,
-            attackToPosition: toPos,
-            outcome
-        };
-
-        updateCurrentSet({
-            attackEvents: [...currentSet.attackEvents, newEvent]
-        });
     }, [currentSet, updateCurrentSet]);
 
     const undoLastDot = useCallback(() => {
@@ -316,23 +318,25 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
 
             {/* Main Content */}
             <div className="flex flex-1 overflow-hidden">
-                {/* Toolbar */}
-                <ScoutToolbar
-                    mode={scoutMode}
-                    setMode={setScoutMode}
-                    activeDotType={activeDotType}
-                    setActiveDotType={setActiveDotType}
-                    currentRotation={currentSet?.currentRotation || 1}
-                    onRotationChange={changeRotation}
-                    hasLineup={currentSet?.startingLineup.length === 6}
-                    players={currentOpponent?.players || []}
-                    selectedPlayerId={selectedPlayerId}
-                    onPlayerSelect={setSelectedPlayerId}
-                    onPassGrade={addPassEvent}
-                    onToggleWeakPasser={toggleWeakPasser}
-                    onUndo={undoLastDot}
-                    canUndo={currentSet ? currentSet.courtDots.length > 0 : false}
-                />
+                {/* Toolbar - only show when we have a lineup */}
+                {currentSet && currentSet.startingLineup.length === 6 && (
+                    <ScoutToolbar
+                        mode={scoutMode}
+                        setMode={setScoutMode}
+                        activeDotType={activeDotType}
+                        setActiveDotType={setActiveDotType}
+                        currentRotation={currentSet?.currentRotation || 1}
+                        onRotationChange={changeRotation}
+                        hasLineup={true}
+                        players={currentOpponent?.players || []}
+                        selectedPlayerId={selectedPlayerId}
+                        onPlayerSelect={setSelectedPlayerId}
+                        onPassGrade={addPassEvent}
+                        onToggleWeakPasser={toggleWeakPasser}
+                        onUndo={undoLastDot}
+                        canUndo={currentSet ? currentSet.courtDots.length > 0 : false}
+                    />
+                )}
 
                 {/* Court Area */}
                 <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
@@ -359,68 +363,39 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                             </button>
                         </div>
                     ) : currentSet.startingLineup.length < 6 ? (
-                        <div className="text-center text-slate-400 max-w-md">
-                            <Settings size={48} className="mx-auto mb-3 opacity-50" />
-                            <p className="text-lg mb-2">Set up starting lineup</p>
-                            <p className="text-sm mb-4">Add players to the opponent roster, then select 6 for the starting lineup.</p>
-                            {currentOpponent.players.length < 6 ? (
+                        // Show the new lineup sheet for entering lineup
+                        currentOpponent.players.length < 6 ? (
+                            <div className="text-center text-slate-400 max-w-md">
+                                <Users size={48} className="mx-auto mb-3 opacity-50" />
+                                <p className="text-lg mb-2">Add opponent players first</p>
+                                <p className="text-sm mb-4">You need at least 6 players in the roster to enter a lineup.</p>
                                 <button
                                     onClick={() => setShowOpponentManager(true)}
                                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500"
                                 >
                                     Add Players ({currentOpponent.players.length}/6+)
                                 </button>
-                            ) : (
-                                <div className="space-y-2">
-                                    <p className="text-xs text-slate-500">Select 6 players for lineup:</p>
-                                    <div className="flex flex-wrap justify-center gap-2">
-                                        {currentOpponent.players.map(player => {
-                                            const isInLineup = currentSet.startingLineup.includes(player.id);
-                                            const lineupIndex = currentSet.startingLineup.indexOf(player.id);
-                                            return (
-                                                <button
-                                                    key={player.id}
-                                                    onClick={() => {
-                                                        if (isInLineup) {
-                                                            updateCurrentSet({
-                                                                startingLineup: currentSet.startingLineup.filter(id => id !== player.id)
-                                                            });
-                                                        } else if (currentSet.startingLineup.length < 6) {
-                                                            const newLineup = [...currentSet.startingLineup, player.id];
-                                                            if (newLineup.length === 6) {
-                                                                setStartingLineup(newLineup);
-                                                            } else {
-                                                                updateCurrentSet({ startingLineup: newLineup });
-                                                            }
-                                                        }
-                                                    }}
-                                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${isInLineup
-                                                            ? 'bg-emerald-600 border-emerald-400 text-white'
-                                                            : 'bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500'
-                                                        }`}
-                                                >
-                                                    {isInLineup ? lineupIndex + 1 : player.number}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-2">
-                                        {currentSet.startingLineup.length}/6 selected
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                            </div>
+                        ) : (
+                            <ScoutLineupSheet
+                                players={currentOpponent.players}
+                                onLineupComplete={setStartingLineup}
+                            />
+                        )
                     ) : (
-                        <ScoutCourt
+                        // Show the full court view for scouting
+                        <ScoutFullCourt
                             players={lineupPlayers}
                             positions={currentPositions}
                             dots={currentSet.courtDots}
+                            currentRotation={currentSet.currentRotation}
                             mode={scoutMode}
                             activeDotType={activeDotType}
                             selectedPlayerId={selectedPlayerId}
                             onDotPlaced={addCourtDot}
                             onPlayerClick={setSelectedPlayerId}
                             onPlayerDrag={updatePlayerPosition}
+                            onRotationChange={changeRotation}
                         />
                     )}
                 </div>
