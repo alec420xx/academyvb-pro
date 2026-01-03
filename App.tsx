@@ -313,21 +313,51 @@ export default function App() {
             }
         };
 
-        // If activePlayers changed, propagate to ALL phases in this rotation
+        // If activePlayers changed, propagate to other phases in this rotation
+        // Find which player was swapped out and which was swapped in
         if (overrides?.activePlayers) {
-            const allPhases = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
-            allPhases.forEach(phase => {
-                const phaseKey = getStorageKey(currentRotation, phase.id, gameMode);
-                if (phaseKey !== key) {
-                    const existingData = newRotations[phaseKey];
-                    newRotations[phaseKey] = {
-                        positions: existingData?.positions || {},
-                        paths: existingData?.paths || [],
-                        activePlayers: activePlayersToSave,
-                        notes: existingData?.notes || ''
-                    };
+            const oldActivePlayers = activePlayerIds;
+            const newActivePlayers = overrides.activePlayers;
+
+            // Find the swapped players
+            let oldPlayerId: string | null = null;
+            let newPlayerId: string | null = null;
+            for (let i = 0; i < 6; i++) {
+                if (oldActivePlayers[i] !== newActivePlayers[i]) {
+                    oldPlayerId = oldActivePlayers[i];
+                    newPlayerId = newActivePlayers[i];
+                    break;
                 }
-            });
+            }
+
+            if (oldPlayerId && newPlayerId) {
+                const allPhases = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
+                allPhases.forEach(phase => {
+                    const phaseKey = getStorageKey(currentRotation, phase.id, gameMode);
+                    if (phaseKey !== key) {
+                        const existingData = newRotations[phaseKey];
+                        // Only update phases that already have valid position data
+                        if (existingData && existingData.positions && Object.keys(existingData.positions).length > 0) {
+                            // Swap the player ID in positions
+                            const newPositions: Record<string, PlayerPosition> = {};
+                            Object.entries(existingData.positions).forEach(([id, pos]) => {
+                                if (id === oldPlayerId) {
+                                    newPositions[newPlayerId!] = pos;
+                                } else {
+                                    newPositions[id] = pos;
+                                }
+                            });
+
+                            newRotations[phaseKey] = {
+                                positions: newPositions,
+                                paths: existingData.paths || [],
+                                activePlayers: activePlayersToSave,
+                                notes: existingData.notes || ''
+                            };
+                        }
+                    }
+                });
+            }
         }
 
         // Update local state

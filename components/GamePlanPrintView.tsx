@@ -100,9 +100,9 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                             : `flex-1 py-2 ${idx !== 5 ? 'border-b border-slate-200' : ''}`
                         }
                     `}>
-                        <div className="w-32 flex-none flex flex-col items-center justify-center gap-2 border-r border-slate-200 pr-3">
-                            <div className="bg-slate-900 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg pb-[2px] leading-none pt-0.5">R{rot}</div>
-                            <div className="w-24 h-24">
+                        <div className="w-36 flex-none flex flex-col items-center justify-center gap-2 border-r border-slate-200 pr-3">
+                            <div className="bg-slate-900 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg leading-none">R{rot}</div>
+                            <div className="w-28 h-28">
                                 <RotationSquare rotation={rot} roster={roster} />
                             </div>
                         </div>
@@ -136,7 +136,7 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                                                         {Object.entries(data.positions || {}).map(([id, pos]) => {
                                                             const player = roster.find(p => p.id === id);
                                                             if (!player) return null;
-                                                            return <PlayerToken key={id} player={player} x={pos.x} y={pos.y} small={true} style={{ marginTop: '-1px' }} />;
+                                                            return <PlayerToken key={id} player={player} x={pos.x} y={pos.y} small={true} />;
                                                         })}
                                                     </Court>
                                                 </div>
