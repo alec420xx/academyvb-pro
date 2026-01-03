@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
     User,
-    signInWithRedirect,
-    getRedirectResult,
+    signInWithPopup,
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
@@ -13,6 +12,7 @@ interface AuthContextType {
     loading: boolean;
     signInWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
+    authError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,15 +20,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState<string | null>(null);
 
-    // Listen for auth state changes and handle redirect result
+    // Listen for auth state changes
     useEffect(() => {
-        // Check for redirect result on mount
-        getRedirectResult(auth).catch((error) => {
-            console.error("Error getting redirect result", error);
-        });
-
+        console.log('AuthProvider: Setting up auth listener');
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            console.log('AuthProvider: Auth state changed', currentUser?.email || 'No user');
             setUser(currentUser);
             setLoading(false);
         });
@@ -37,9 +35,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signInWithGoogle = async () => {
         try {
-            await signInWithRedirect(auth, googleProvider);
-        } catch (error) {
-            console.error("Error signing in with Google", error);
+            setAuthError(null);
+            console.log('AuthProvider: Starting Google sign-in...');
+            const result = await signInWithPopup(auth, googleProvider);
+            console.log('AuthProvider: Sign-in successful', result.user.email);
+        } catch (error: any) {
+            console.error("AuthProvider: Sign-in error", error.code, error.message);
+            setAuthError(error.message || 'Sign-in failed');
             throw error;
         }
     };
@@ -64,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return (
-        <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout }}>
+        <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout, authError }}>
             {children}
         </AuthContext.Provider>
     );
