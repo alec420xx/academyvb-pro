@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, AlertTriangle, FileText, CheckCircle2, Save, LogIn, LogOut, Copy } from 'lucide-react';
 import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
-import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid, migrateStorage } from './utils';
+import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid } from './utils';
 import { Court } from './components/Court';
 import { PlayerToken } from './components/PlayerToken';
 import { MobileControls } from './components/MobileControls';
@@ -11,15 +11,18 @@ import { RosterView } from './components/RosterView';
 import { RotationSquare } from './components/RotationSquare';
 import { GamePlanPrintView } from './components/GamePlanPrintView';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
-import { useCloudData } from './hooks/useCloudData';
+import { useUserData } from './hooks/useUserData';
 import { useAuth } from './contexts/AuthContext';
-import { saveData, loadData, subscribeToData, subscribeToCollection, saveTeam as apiSaveTeam, saveLineup as apiSaveLineup, deleteTeam as apiDeleteTeam, deleteLineup as apiDeleteLineup, migrateCloudData, STORAGE_KEYS } from './services/storage';
 // import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 // Simple deep equal helper for now
 const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.stringify(obj2);
 
 export default function App() {
+    // --- AUTH & DATA ---
+    const { user, teams, lineups, setTeams, setLineups, isLoading, isSaving, error: dataError, forceSave } = useUserData();
+    const { signInWithGoogle, logout } = useAuth();
+
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export'>('board');
     const [gameMode, setGameMode] = useState<GameMode>('offense');
     const [currentRotation, setCurrentRotation] = useState(1);
@@ -40,14 +43,12 @@ export default function App() {
     const [mobilePlanRotation, setMobilePlanRotation] = useState(1);
     const [printViewStartRotation, setPrintViewStartRotation] = useState(1);
 
-    // --- GLOBAL DATA STATE ---
-    const [teams, setTeams] = useState<Team[]>([]);
+    // --- ACTIVE SELECTION STATE ---
     const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
-    const [lineups, setLineups] = useState<Lineup[]>([]);
     const [currentLineupId, setCurrentLineupId] = useState<string | null>(null);
 
     // --- SAVE STATUS STATE ---
-    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'unsaved'>('saved');
+    const saveStatus = isSaving ? 'saving' : (dataError ? 'error' : 'saved');
 
     // --- UI STATE ---
     const [isLineupManagerOpen, setIsLineupManagerOpen] = useState(false);
@@ -58,12 +59,6 @@ export default function App() {
     const [isEditingHeaderTeam, setIsEditingHeaderTeam] = useState(false);
     const [isEditingHeaderLineup, setIsEditingHeaderLineup] = useState(false);
 
-
-    // --- WORKING MEMORY (Active Lineup) ---
-    // --- WORKING MEMORY (Active Lineup) ---
-    const { saveRoster, saveRotations, loadInitialData, isSyncing, user } = useCloudData();
-    const { signInWithGoogle, logout } = useAuth();
-
     const [roster, setRoster] = useState<Player[]>(DEFAULT_ROSTER);
     const [savedRotations, setSavedRotations] = useState<Record<string, SavedRotationData>>({});
     const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
@@ -73,150 +68,31 @@ export default function App() {
     const [history, setHistory] = useState<any[]>([]);
     const [future, setFuture] = useState<any[]>([]); // Redo stack
 
-    // Load Data on Mount (Cloud -> Local)
-    // Load Data on Mount (Cloud -> Local) with REAL-TIME SYNC
+    // --- INITIALIZE ACTIVE TEAM/LINEUP WHEN DATA LOADS ---
     useEffect(() => {
-        // Initial static load to populate state quickly (local first)
-        const load = async () => {
-            const data = await loadInitialData();
-            if (data.roster) setRoster(data.roster);
-            if (data.rotations) setSavedRotations(data.rotations);
-
-            // CHECK FOR LOCAL TEAMS/LINEUPS (Offline/Initial state)
-            // If user is logged in, we rely on subscriptions (unsubTeams, unsubLineups) to get the "Truth".
-            // Calling loadData here fetches the OLD blob data which overwrites the fresh subscription data.
-            // So we only load from local/legacy if NO USER is present (offline mode).
-            if (!user) {
-                let loadedTeams = await loadData(null, STORAGE_KEYS.TEAMS) || [];
-                let loadedLineups = await loadData(null, STORAGE_KEYS.LINEUPS) || [];
-
-                if (loadedTeams.length === 0) {
-                    const defaultTeam: Team = { id: generateId('team'), name: 'My Team', roster: DEFAULT_ROSTER };
-                    loadedTeams = [defaultTeam];
-                    saveData(null, STORAGE_KEYS.TEAMS, loadedTeams);
-                }
-                setTeams(loadedTeams);
-
-                if (loadedTeams.length > 0) {
-                    const activeTeamId = loadedTeams[0].id;
-                    setCurrentTeamId(activeTeamId);
-
-                    const teamLineups = loadedLineups.filter((l: Lineup) => l.teamId === activeTeamId);
-                    if (teamLineups.length === 0) {
-                        const defaultLineup: Lineup = {
-                            id: generateId('lineup'),
-                            teamId: activeTeamId,
-                            name: 'Lineup 1',
-                            roster: loadedTeams[0].roster,
-                            rotations: {}
-                        };
-                        loadedLineups = [...loadedLineups, defaultLineup];
-                        saveData(null, STORAGE_KEYS.LINEUPS, loadedLineups);
-                    }
-                }
-                setLineups(loadedLineups);
-            }
-        };
-        load();
-
-        if (!user) return;
-
-        // --- MIGRATION HOOK ---
-        // Don't block on migration - it may fail if offline
-        migrateCloudData(user.uid).catch(() => {});
-
-        // Subscribe to Roster
-        const unsubRoster = subscribeToData(user.uid, STORAGE_KEYS.ROSTER, (data) => {
-            if (data) setRoster(data);
-        });
-
-        // Subscribe to Rotations - DEPRECATED/REMOVED
-        // We now rely solely on 'unsubLineups' to be the Single Source of Truth.
-        // This avoids race conditions where 'ROTATIONS' key might be stale or newer than 'LINEUPS'.
-
-        /*
-        const unsubRotations = subscribeToData(user.uid, STORAGE_KEYS.ROTATIONS, (data) => {
-            if (data) {
-                // Prevent infinite loop by only updating if actually different
-                setSavedRotations(prev => {
-                    if (JSON.stringify(prev) !== JSON.stringify(data)) {
-                        return data;
-                    }
-                    return prev;
-                });
-            }
-        });
-        */
-
-        // Subscribe to Teams (Collection)
-        const unsubTeams = subscribeToCollection(user.uid, 'teams', (items) => {
-            setTeams(items as Team[]);
-            if (items.length > 0 && !currentTeamId) {
-                setCurrentTeamId(items[0].id);
-            }
-        });
-
-        // Subscribe to Lineups (Collection)
-        const unsubLineups = subscribeToCollection(user.uid, 'lineups', (items) => {
-            setLineups(items as Lineup[]);
-            // Note: Default lineup creation is handled by the useEffect that watches [currentTeamId, lineups]
-        });
-
-        // REFACTORED: We moved the "Sync View from Lineups" logic to a separate useEffect
-        // dealing with [lineups, currentLineupId] to avoid closure hell.
-
-        return () => {
-            unsubRoster && unsubRoster();
-            unsubTeams && unsubTeams();
-            unsubLineups && unsubLineups();
-        };
-    }, [user]);
-
-    // --- SYNC LOCAL VIEW WITH LATEST LINEUP DATA ---
-    // If 'lineups' updates (from cloud), check if our current lineup has newer data
-    // Skip if we're in the middle of saving to avoid race conditions
-    useEffect(() => {
-        if (!currentLineupId || lineups.length === 0) return;
-        if (saveInProgressRef.current) return;
-
-        const activeLineupData = lineups.find(l => l.id === currentLineupId);
-        if (activeLineupData && activeLineupData.rotations) {
-            setSavedRotations(prev => {
-                if (!deepEqual(prev, activeLineupData.rotations)) {
-                    return activeLineupData.rotations;
-                }
-                return prev;
-            });
+        if (teams.length > 0 && !currentTeamId) {
+            setCurrentTeamId(teams[0].id);
         }
-    }, [lineups, currentLineupId]);
+    }, [teams, currentTeamId]);
 
-    // --- SYNC ROSTER WITH LATEST TEAM DATA ---
-    // If 'teams' updates (from cloud), check if our active team's roster has changed
+    useEffect(() => {
+        if (!currentTeamId || lineups.length === 0) return;
+
+        const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
+        if (teamLineups.length > 0 && !currentLineupId) {
+            loadLineup(teamLineups[0].id);
+        }
+    }, [lineups, currentTeamId, currentLineupId]);
+
+    // --- SYNC ROSTER WITH CURRENT TEAM ---
     useEffect(() => {
         if (!currentTeamId || teams.length === 0) return;
 
-        const activeTeamData = teams.find(t => t.id === currentTeamId);
-        if (activeTeamData && activeTeamData.roster) {
-            if (!deepEqual(roster, activeTeamData.roster)) {
-                setRoster(activeTeamData.roster);
-            }
-        } else if (!activeTeamData && currentTeamId) {
-            if (teams.length > 0) setCurrentTeamId(teams[0].id);
+        const activeTeam = teams.find(t => t.id === currentTeamId);
+        if (activeTeam && activeTeam.roster) {
+            setRoster(activeTeam.roster);
         }
-    }, [teams, currentTeamId, roster]);
-
-
-
-
-    // Auto-Save Rotations - RETIRED
-    // We now save manually in saveCurrentState to avoid effects loop.
-    // The previous effect [savedRotations] was causing:
-    // Local Update -> setSavedRotations -> Effect Save -> Cloud -> Listener -> setSavedRotations -> Effect Save (Loop)
-    /*
-    useEffect(() => {
-        saveRotations(savedRotations);
-    }, [savedRotations]);
-    */
+    }, [currentTeamId, teams]);
 
     // Interaction
     const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
@@ -436,7 +312,6 @@ export default function App() {
         const key = getStorageKey(currentRotation, currentPhase, gameMode);
 
         // Use overrides if provided, otherwise use current state
-        // This fixes the stale closure issue when called immediately after setState
         const pathsToSave = overrides?.paths ?? paths;
         const positionsToSave = overrides?.positions ?? playerPositions;
         const activePlayersToSave = overrides?.activePlayers ?? activePlayerIds;
@@ -458,7 +333,7 @@ export default function App() {
         // Update local state
         setSavedRotations(newRotations);
 
-        // Also update lineups state immediately so cloud sync doesn't overwrite
+        // Update lineups - this will trigger auto-save via useUserData
         const updatedLineups = lineups.map(l => {
             if (l.id === currentLineupId) {
                 return { ...l, rotations: newRotations, roster: roster };
@@ -466,38 +341,6 @@ export default function App() {
             return l;
         });
         setLineups(updatedLineups);
-
-        // Save LINEUPS directly here - SINGLE SOURCE OF TRUTH (now Atomic)
-        // Find the specific lineup we are modifying
-        const activeLineup = updatedLineups.find(l => l.id === currentLineupId);
-
-        if (activeLineup && user?.uid) {
-            setSaveStatus('saving');
-            saveInProgressRef.current = true;
-
-            // Safety timeout to ensure saveInProgressRef doesn't get stuck
-            const safetyTimeout = setTimeout(() => {
-                if (saveInProgressRef.current) {
-                    saveInProgressRef.current = false;
-                }
-            }, 5000);
-
-            apiSaveLineup(user.uid, activeLineup)
-                .then(() => {
-                    clearTimeout(safetyTimeout);
-                    setTimeout(() => {
-                        setSaveStatus('saved');
-                        saveInProgressRef.current = false;
-                    }, 300);
-                })
-                .catch(() => {
-                    clearTimeout(safetyTimeout);
-                    setSaveStatus('error');
-                    saveInProgressRef.current = false;
-                });
-        } else {
-            setSaveStatus('error');
-        }
 
         return newRotations;
     };
@@ -590,16 +433,14 @@ export default function App() {
         }
     }, [savedRotations, currentRotation, currentPhase, gameMode, draggedPlayer, isDrawing]);
 
+    // --- SYNC ROSTER CHANGES BACK TO TEAM ---
     useEffect(() => {
         if (!currentTeamId || teams.length === 0) return;
         const timer = setTimeout(() => {
             const activeTeam = teams.find(t => t.id === currentTeamId);
-            if (activeTeam) {
+            if (activeTeam && !deepEqual(activeTeam.roster, roster)) {
                 const updatedTeam = { ...activeTeam, roster: roster };
-                // Update local state is tricky here if we want to avoid re-renders or infinite loops
-                // but since we are Debounced, it's safer.
-                setTeams(prev => prev.map(t => t.id === currentTeamId ? updatedTeam : t));
-                apiSaveTeam(user?.uid, updatedTeam);
+                setTeams(teams.map(t => t.id === currentTeamId ? updatedTeam : t));
             }
         }, 1000);
         return () => clearTimeout(timer);
@@ -609,7 +450,6 @@ export default function App() {
     const createTeam = () => {
         const newTeam: Team = { id: generateId('team'), name: newItemName || 'New Team', roster: DEFAULT_ROSTER };
         setTeams([...teams, newTeam]);
-        apiSaveTeam(user?.uid, newTeam);
         setNewItemName('');
         setIsTeamManagerOpen(false);
         switchTeam(newTeam.id);
@@ -628,31 +468,25 @@ export default function App() {
         const team = teams.find(t => t.id === id);
         if (!confirm(`Delete "${team?.name}"? This will also delete all lineups for this team.`)) return;
         const newTeams = teams.filter(t => t.id !== id);
+        const newLineups = lineups.filter(l => l.teamId !== id);
         setTeams(newTeams);
-        apiDeleteTeam(user?.uid, id);
-        // Also delete all lineups for this team
-        lineups.filter(l => l.teamId === id).forEach(l => apiDeleteLineup(user?.uid, l.id));
-        setLineups(lineups.filter(l => l.teamId !== id));
+        setLineups(newLineups);
         if (currentTeamId === id) switchTeam(newTeams[0].id);
     };
 
     const renameTeam = (id: string, newName: string) => {
         const targetTeam = teams.find(t => t.id === id);
         if (!targetTeam) return;
-
         const updatedTeam = { ...targetTeam, name: newName };
         setTeams(teams.map(t => t.id === id ? updatedTeam : t));
-        apiSaveTeam(user?.uid, updatedTeam);
         setEditId(null);
     };
 
     const renameLineup = (id: string, newName: string) => {
         const targetLineup = lineups.find(l => l.id === id);
         if (!targetLineup) return;
-
         const updatedLineup = { ...targetLineup, name: newName };
         setLineups(lineups.map(l => l.id === id ? updatedLineup : l));
-        apiSaveLineup(user?.uid, updatedLineup);
         setEditId(null);
     };
 
@@ -662,7 +496,6 @@ export default function App() {
         const newLineup: Lineup = { id: generateId('lineup'), teamId: teamId, name: name, roster: safeRoster, rotations: {} };
         const newLineups = [...currentLineupsList, newLineup];
         setLineups(newLineups);
-        apiSaveLineup(user?.uid, newLineup);
 
         if (newLineups.filter(l => l.teamId === teamId).length === 1 || teamId === currentTeamId) {
             loadLineup(newLineup.id, newLineups);
@@ -704,7 +537,6 @@ export default function App() {
         if (!confirm(`Delete "${lineup?.name}"?`)) return;
         const newLineups = lineups.filter(l => l.id !== id);
         setLineups(newLineups);
-        apiDeleteLineup(user?.uid, id);
 
         if (currentLineupId === id) {
             const remaining = newLineups.filter(l => l.teamId === currentTeamId);
@@ -724,7 +556,6 @@ export default function App() {
         };
         const newLineups = [...lineups, newLineup];
         setLineups(newLineups);
-        apiSaveLineup(user?.uid, newLineup);
         loadLineup(newLineup.id, newLineups);
     };
 
@@ -1317,8 +1148,50 @@ export default function App() {
     const currentPhasesList = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
     const currentAttacker = currentPhasesList.find(p => p.id === currentPhase)?.attacker;
 
+    // --- LOGIN SCREEN ---
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex items-center justify-center">
+                <div className="max-w-md w-full mx-4 bg-slate-900 rounded-2xl p-8 border border-slate-700">
+                    <div className="text-center mb-8">
+                        <div className="bg-black p-3 rounded-lg text-red-600 inline-block mb-4"><ClubLogo size={48} /></div>
+                        <h1 className="text-2xl font-black text-white mb-2">ACADEMYVB</h1>
+                        <p className="text-slate-400">Volleyball rotation planner</p>
+                    </div>
+                    <button
+                        onClick={signInWithGoogle}
+                        className="w-full py-3 bg-white text-slate-900 font-bold rounded-lg hover:bg-slate-100 transition-colors flex items-center justify-center gap-3"
+                    >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        Sign in with Google
+                    </button>
+                    <p className="text-slate-500 text-sm text-center mt-6">
+                        Sign in to sync your data across devices
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // --- LOADING SCREEN ---
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600 mx-auto mb-4"></div>
+                    <p className="text-slate-400 text-sm">Loading your data...</p>
+                </div>
+            </div>
+        );
+    }
+
     // Check if user needs to complete setup (logged in but missing team/lineup)
-    const needsSetup = user && (teams.length === 0 || !currentLineupId);
+    const needsSetup = teams.length === 0 || !currentLineupId;
 
     useEffect(() => {
         if (isDrawing && mode === 'polygon' && currentPath && currentPath.points.length > 2) {
