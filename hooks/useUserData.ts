@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { loadUserData, saveUserData, UserData } from '../services/storage';
-import { Team, Lineup, ScoutedTeam, ScoutingSession } from '../types';
+import { Team, Lineup, ScoutOpponent } from '../types';
 
 export function useUserData() {
     const { user } = useAuth();
     const [teams, setTeams] = useState<Team[]>([]);
     const [lineups, setLineups] = useState<Lineup[]>([]);
-    const [scoutedTeams, setScoutedTeams] = useState<ScoutedTeam[]>([]);
-    const [scoutingSessions, setScoutingSessions] = useState<ScoutingSession[]>([]);
+    const [scoutOpponents, setScoutOpponents] = useState<ScoutOpponent[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -17,14 +16,12 @@ export function useUserData() {
     // Refs to always have current values
     const teamsRef = useRef<Team[]>(teams);
     const lineupsRef = useRef<Lineup[]>(lineups);
-    const scoutedTeamsRef = useRef<ScoutedTeam[]>(scoutedTeams);
-    const scoutingSessionsRef = useRef<ScoutingSession[]>(scoutingSessions);
+    const scoutOpponentsRef = useRef<ScoutOpponent[]>(scoutOpponents);
 
     // Keep refs in sync
     useEffect(() => { teamsRef.current = teams; }, [teams]);
     useEffect(() => { lineupsRef.current = lineups; }, [lineups]);
-    useEffect(() => { scoutedTeamsRef.current = scoutedTeams; }, [scoutedTeams]);
-    useEffect(() => { scoutingSessionsRef.current = scoutingSessions; }, [scoutingSessions]);
+    useEffect(() => { scoutOpponentsRef.current = scoutOpponents; }, [scoutOpponents]);
 
     // Debounce timer ref
     const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,14 +39,12 @@ export function useUserData() {
             const data = await loadUserData(user.uid);
             setTeams(data.teams);
             setLineups(data.lineups);
-            setScoutedTeams(data.scoutedTeams);
-            setScoutingSessions(data.scoutingSessions);
+            setScoutOpponents(data.scoutOpponents);
             teamsRef.current = data.teams;
             lineupsRef.current = data.lineups;
-            scoutedTeamsRef.current = data.scoutedTeams;
-            scoutingSessionsRef.current = data.scoutingSessions;
+            scoutOpponentsRef.current = data.scoutOpponents;
             setLoadComplete(true); // Mark load as complete - now saves are allowed
-            console.log('useUserData: Load SUCCESS -', data.teams.length, 'teams,', data.lineups.length, 'lineups,', data.scoutedTeams.length, 'scouted teams,', data.scoutingSessions.length, 'sessions');
+            console.log('useUserData: Load SUCCESS -', data.teams.length, 'teams,', data.lineups.length, 'lineups,', data.scoutOpponents.length, 'scoutOpponents');
         } catch (err: any) {
             console.error('useUserData: Load FAILED', err);
             setError(err.message || 'Failed to load data');
@@ -63,8 +58,7 @@ export function useUserData() {
         if (!user) {
             setTeams([]);
             setLineups([]);
-            setScoutedTeams([]);
-            setScoutingSessions([]);
+            setScoutOpponents([]);
             setIsLoading(false);
             setLoadComplete(false);
             return;
@@ -86,16 +80,14 @@ export function useUserData() {
         const dataToSave = {
             teams: teamsRef.current,
             lineups: lineupsRef.current,
-            scoutedTeams: scoutedTeamsRef.current,
-            scoutingSessions: scoutingSessionsRef.current,
+            scoutOpponents: scoutOpponentsRef.current,
             lastUpdated: Date.now()
         };
 
         console.log('useUserData: Saving...', {
             teams: dataToSave.teams.length,
             lineups: dataToSave.lineups.length,
-            scoutedTeams: dataToSave.scoutedTeams.length,
-            scoutingSessions: dataToSave.scoutingSessions.length
+            scoutOpponents: dataToSave.scoutOpponents.length
         });
 
         setIsSaving(true);
@@ -145,22 +137,15 @@ export function useUserData() {
         scheduleSave(wasEmpty || isCreatingOrDeleting);
     }, [scheduleSave]);
 
-    // Update scouted teams and trigger save
-    const updateScoutedTeams = useCallback((newScoutedTeams: ScoutedTeam[]) => {
-        console.log('useUserData: updateScoutedTeams called with', newScoutedTeams.length, 'scouted teams');
-        const isCreatingOrDeleting = newScoutedTeams.length !== scoutedTeamsRef.current.length;
-        setScoutedTeams(newScoutedTeams);
-        scoutedTeamsRef.current = newScoutedTeams;
-        scheduleSave(isCreatingOrDeleting);
-    }, [scheduleSave]);
-
-    // Update scouting sessions and trigger save
-    const updateScoutingSessions = useCallback((newSessions: ScoutingSession[]) => {
-        console.log('useUserData: updateScoutingSessions called with', newSessions.length, 'sessions');
-        const isCreatingOrDeleting = newSessions.length !== scoutingSessionsRef.current.length;
-        setScoutingSessions(newSessions);
-        scoutingSessionsRef.current = newSessions;
-        scheduleSave(isCreatingOrDeleting);
+    // Update scout opponents and trigger save
+    const updateScoutOpponents = useCallback((newOpponents: ScoutOpponent[]) => {
+        console.log('useUserData: updateScoutOpponents called with', newOpponents.length, 'opponents');
+        const wasEmpty = scoutOpponentsRef.current.length === 0;
+        const isCreatingOrDeleting = newOpponents.length !== scoutOpponentsRef.current.length;
+        setScoutOpponents(newOpponents);
+        scoutOpponentsRef.current = newOpponents;
+        // Immediate save for first opponent or when adding/removing opponents
+        scheduleSave(wasEmpty || isCreatingOrDeleting);
     }, [scheduleSave]);
 
     // Force save immediately (for critical operations)
@@ -192,8 +177,7 @@ export function useUserData() {
                 const data = {
                     teams: teamsRef.current,
                     lineups: lineupsRef.current,
-                    scoutedTeams: scoutedTeamsRef.current,
-                    scoutingSessions: scoutingSessionsRef.current,
+                    scoutOpponents: scoutOpponentsRef.current,
                     lastUpdated: Date.now()
                 };
                 // Use sendBeacon for reliable delivery on page close
@@ -212,12 +196,10 @@ export function useUserData() {
         user,
         teams,
         lineups,
-        scoutedTeams,
-        scoutingSessions,
+        scoutOpponents,
         setTeams: updateTeams,
         setLineups: updateLineups,
-        setScoutedTeams: updateScoutedTeams,
-        setScoutingSessions: updateScoutingSessions,
+        setScoutOpponents: updateScoutOpponents,
         isLoading,
         isSaving,
         error,

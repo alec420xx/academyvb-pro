@@ -10,9 +10,9 @@
       "Bash(git push:*)",
       "Bash(npx tsc:*)",
       "Bash(git restore:*)",
-      "Bash(git checkout:*)",
-      "Bash(git fetch:*)",
-      "Bash(git merge:*)"
+      "Bash(cat:*)",
+      "Bash(wc:*)",
+      "Bash(npx vite build)"
     ]
   }
 }

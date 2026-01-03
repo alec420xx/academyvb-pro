@@ -1,4 +1,4 @@
-import { Phase, PlayerRole, Player } from './types';
+import { Phase, PlayerRole, Player, DotType } from './types';
 
 export const OFFENSE_PHASES: Phase[] = [
   { id: 'receive1', label: 'Receive 1' },
@@ -63,3 +63,42 @@ export const DRAWING_COLORS = [
   COLOR_PALETTE.Black,
   COLOR_PALETTE.Gray
 ];
+
+// === SCOUT CONSTANTS ===
+
+// Colors for court dots (where points are scored/lost)
+export const SCOUT_DOT_COLORS: Record<DotType, string> = {
+  kill: '#10b981',        // Green - successful attack
+  error: '#ef4444',       // Red - attack error
+  ace: '#3b82f6',         // Blue - service ace
+  serviceError: '#f97316', // Orange - service error
+  block: '#8b5cf6',       // Purple - block kill
+};
+
+// Labels for dot types
+export const SCOUT_DOT_LABELS: Record<DotType, string> = {
+  kill: 'Kill',
+  error: 'Error',
+  ace: 'Ace',
+  serviceError: 'Svc Err',
+  block: 'Block',
+};
+
+// Pass grade labels (0-3 scale)
+export const PASS_GRADE_LABELS: Record<number, string> = {
+  0: '0 - Overpass/Ace',
+  1: '1 - Out of System',
+  2: '2 - Playable',
+  3: '3 - Perfect',
+};
+
+// Default zone positions on court (percentage-based)
+// These represent typical starting positions for each zone
+export const SCOUT_ZONE_POSITIONS: Record<number, { x: number; y: number }> = {
+  1: { x: 75, y: 75 },  // Back right (serve position)
+  2: { x: 75, y: 25 },  // Front right
+  3: { x: 50, y: 25 },  // Front middle
+  4: { x: 25, y: 25 },  // Front left
+  5: { x: 25, y: 75 },  // Back left
+  6: { x: 50, y: 75 },  // Back middle
+};

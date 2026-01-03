@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Team, Lineup, ScoutedTeam, ScoutingSession } from '../types';
+import { Team, Lineup, ScoutOpponent } from '../types';
 
 // Simple single-document storage
 // All user data is stored in one document: users/{uid}
@@ -8,16 +8,14 @@ import { Team, Lineup, ScoutedTeam, ScoutingSession } from '../types';
 export interface UserData {
     teams: Team[];
     lineups: Lineup[];
-    scoutedTeams: ScoutedTeam[];
-    scoutingSessions: ScoutingSession[];
+    scoutOpponents: ScoutOpponent[];
     lastUpdated: number;
 }
 
 const DEFAULT_USER_DATA: UserData = {
     teams: [],
     lineups: [],
-    scoutedTeams: [],
-    scoutingSessions: [],
+    scoutOpponents: [],
     lastUpdated: Date.now()
 };
 
@@ -59,8 +57,6 @@ const migrateOldData = async (userId: string): Promise<UserData | null> => {
         const newData: UserData = {
             teams,
             lineups,
-            scoutedTeams: [],
-            scoutingSessions: [],
             lastUpdated: Date.now()
         };
 
@@ -104,14 +100,12 @@ export const loadUserData = async (userId: string): Promise<UserData> => {
                 console.log('loadUserData: Found data', {
                     teams: data.teams?.length || 0,
                     lineups: data.lineups?.length || 0,
-                    scoutedTeams: data.scoutedTeams?.length || 0,
-                    scoutingSessions: data.scoutingSessions?.length || 0
+                    scoutOpponents: data.scoutOpponents?.length || 0
                 });
                 return {
                     teams: data.teams || [],
                     lineups: data.lineups || [],
-                    scoutedTeams: data.scoutedTeams || [],
-                    scoutingSessions: data.scoutingSessions || [],
+                    scoutOpponents: data.scoutOpponents || [],
                     lastUpdated: data.lastUpdated || Date.now()
                 };
             } else {

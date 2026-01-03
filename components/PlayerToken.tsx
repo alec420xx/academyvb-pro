@@ -72,17 +72,17 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       }}
       className={`
         ${isGhost ? 'fixed z-[100] shadow-2xl scale-110 pointer-events-none' : `absolute transition-transform ${interactionClasses}`}
-        ${sizeClasses} rounded-full flex items-center justify-center shadow-sm
-        ${isDragging ? 'opacity-50' : ''} 
-        ${tokenColorClass} 
+        ${sizeClasses} rounded-full shadow-sm
+        ${isDragging ? 'opacity-50' : ''}
+        ${tokenColorClass}
         ${isSelected ? 'ring-4 ring-blue-500 ring-offset-2 z-50' : ''}
         font-sans z-40
       `}
-      style={{ ...positionStyle, touchAction: 'none' }}
+      style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - just centered number
-        <span className="font-black text-[11px] leading-none pointer-events-none select-none" style={{ marginTop: '-1px' }}>{player.number}</span>
+        // Small token (print view) - just centered number with explicit line-height
+        <span className="font-black pointer-events-none select-none" style={{ fontSize: '11px', lineHeight: '28px', textAlign: 'center' }}>{player.number}</span>
       ) : (
         // Normal token - number + role
         <>

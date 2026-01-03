@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, FileText, LogIn, LogOut, Copy, Search } from 'lucide-react';
-import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode, ScoutedTeam, ScoutingSession } from './types';
+import { Users, Pencil, Move, Trash2, Undo, Redo, ChevronRight, UserPlus, X, RefreshCw, Camera, FolderOpen, Plus, Download, Trophy, Shield, Loader2, Hexagon, Layout, FileText, LogIn, LogOut, Copy } from 'lucide-react';
+import { Player, DrawingPath, PlayerPosition, Team, Lineup, SavedRotationData, GameMode } from './types';
 import { OFFENSE_PHASES, DEFENSE_PHASES, DEFAULT_ROSTER, getRoleColor, DRAWING_COLORS } from './constants';
 import { generateId, getStorageKey, getPlayerZone, calculateDefaultPositions, isFrontRow, isPointInPolygon, distToSegment, getCentroid } from './utils';
 import { Court } from './components/Court';
@@ -10,10 +10,10 @@ import { Sidebar } from './components/Sidebar';
 import { RosterView } from './components/RosterView';
 import { RotationSquare } from './components/RotationSquare';
 import { GamePlanPrintView } from './components/GamePlanPrintView';
-import { ScoutPage } from './components/ScoutPage';
 import { ClubLogo, CustomArrowIcon, DiagonalLineIcon, CourtIcon } from './components/Icons';
 import { useUserData } from './hooks/useUserData';
 import { useAuth } from './contexts/AuthContext';
+import { ScoutPage } from './components/scout/ScoutPage';
 // import { deepEqual } from './utils'; // We'll assume a helper or just use JSON.stringify inline for now
 
 // Simple deep equal helper for now
@@ -21,7 +21,7 @@ const deepEqual = (obj1: any, obj2: any) => JSON.stringify(obj1) === JSON.string
 
 export default function App() {
     // --- AUTH & DATA ---
-    const { user, teams, lineups, scoutedTeams, scoutingSessions, setTeams, setLineups, setScoutedTeams, setScoutingSessions, isLoading, error: dataError, loadComplete, retry } = useUserData();
+    const { user, teams, lineups, scoutOpponents, setTeams, setLineups, setScoutOpponents, isLoading, error: dataError, loadComplete, retry } = useUserData();
     const { signInWithGoogle, logout } = useAuth();
 
     const [activeTab, setActiveTab] = useState<'roster' | 'board' | 'export' | 'scout'>('board');
@@ -56,7 +56,6 @@ export default function App() {
     const [editName, setEditName] = useState('');
     const [isEditingHeaderTeam, setIsEditingHeaderTeam] = useState(false);
     const [isEditingHeaderLineup, setIsEditingHeaderLineup] = useState(false);
-    const [deleteConfirm, setDeleteConfirm] = useState<{type: 'team' | 'lineup', id: string, name: string} | null>(null);
 
     const [roster, setRoster] = useState<Player[]>(DEFAULT_ROSTER);
     const [savedRotations, setSavedRotations] = useState<Record<string, SavedRotationData>>({});
@@ -474,29 +473,12 @@ export default function App() {
     const deleteTeam = (id: string) => {
         if (teams.length <= 1) return alert("Cannot delete last team.");
         const team = teams.find(t => t.id === id);
-        if (!team) return;
-        setDeleteConfirm({ type: 'team', id, name: team.name });
-    };
-
-    const confirmDelete = () => {
-        if (!deleteConfirm) return;
-
-        if (deleteConfirm.type === 'team') {
-            const newTeams = teams.filter(t => t.id !== deleteConfirm.id);
-            const newLineups = lineups.filter(l => l.teamId !== deleteConfirm.id);
-            setTeams(newTeams);
-            setLineups(newLineups);
-            if (currentTeamId === deleteConfirm.id) switchTeam(newTeams[0].id);
-        } else if (deleteConfirm.type === 'lineup') {
-            const newLineups = lineups.filter(l => l.id !== deleteConfirm.id);
-            setLineups(newLineups);
-            const currentTeamLineups = newLineups.filter(l => l.teamId === currentTeamId);
-            if (currentLineupId === deleteConfirm.id && currentTeamLineups.length > 0) {
-                switchLineup(currentTeamLineups[0].id);
-            }
-        }
-
-        setDeleteConfirm(null);
+        if (!confirm(`Delete "${team?.name}"? This will also delete all lineups for this team.`)) return;
+        const newTeams = teams.filter(t => t.id !== id);
+        const newLineups = lineups.filter(l => l.teamId !== id);
+        setTeams(newTeams);
+        setLineups(newLineups);
+        if (currentTeamId === id) switchTeam(newTeams[0].id);
     };
 
     const renameTeam = (id: string, newName: string) => {
@@ -559,8 +541,14 @@ export default function App() {
         const teamLineups = lineups.filter(l => l.teamId === currentTeamId);
         if (teamLineups.length <= 1) return alert("Must have at least one lineup.");
         const lineup = lineups.find(l => l.id === id);
-        if (!lineup) return;
-        setDeleteConfirm({ type: 'lineup', id, name: lineup.name });
+        if (!confirm(`Delete "${lineup?.name}"?`)) return;
+        const newLineups = lineups.filter(l => l.id !== id);
+        setLineups(newLineups);
+
+        if (currentLineupId === id) {
+            const remaining = newLineups.filter(l => l.teamId === currentTeamId);
+            if (remaining.length > 0) loadLineup(remaining[0].id, newLineups);
+        }
     };
 
     const duplicateLineup = (id: string) => {
@@ -939,36 +927,51 @@ export default function App() {
         const cy = ((y - rect.top) / rect.height) * 100;
 
         if (mode === 'move') {
-            // Always perform hit test on touch/click to check for UI buttons (move/delete)
+            // FIX: Always perform hit test on touch/click to check for UI buttons (move/delete)
+            // or new shape selections. Don't rely on 'hoveredElement' state alone.
             let hit = performHitTest(cx, cy, rect.width, rect.height);
 
-            // Check if clicking delete button first
-            if (hit && hit.type === 'delete') {
-                const newPaths = paths.filter((_, i) => i !== hit.index);
-                setPaths(newPaths);
-                setHoveredElement(null);
-                saveCurrentState({ paths: newPaths });
-                saveToHistory();
-                return;
-            }
-
-            if (hit && hit.type === 'move-shape') {
-                setSelectedShapeIndex(hit.index);
-                saveToHistory();
-                return;
-            }
-
-            if (hit && hit.type === 'vertex') {
-                setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
-                saveToHistory();
-                return;
-            }
-
-            if (hit && (hit.type === 'shape' || hit.type === 'ui-proximity')) {
+            // For mouse clicks, update hoveredElement before checking hit type
+            // This ensures delete/move buttons work on first click
+            if (e.type !== 'touchstart' && hit) {
                 setHoveredElement(hit);
-                if (e.type === 'touchstart') return;
             }
 
+            // If no immediate hit, but we have a hover element, we might be clicking "off" it
+            // checking specifically for UI proximity or button clicks was done by performHitTest
+            // utilizing the current hoveredElement state internally.
+
+            if (!hit && e.type === 'touchstart') {
+                // If we missed everything, clear selection
+                setHoveredElement(null);
+            } else if (e.type === 'touchstart') {
+                // Update hover on touch
+                setHoveredElement(hit);
+            }
+
+            if (hit) {
+                if (hit.type === 'delete') {
+                    setPaths(prev => prev.filter((_, i) => i !== hit.index));
+                    setHoveredElement(null);
+                    saveCurrentState();
+                    saveToHistory();
+                    return;
+                }
+                if (hit.type === 'move-shape') {
+                    setSelectedShapeIndex(hit.index);
+                    saveToHistory();
+                    return;
+                }
+                if (hit.type === 'vertex') {
+                    setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
+                    saveToHistory();
+                    return;
+                }
+                if ((hit.type === 'shape' || hit.type === 'ui-proximity') && e.type === 'touchstart') {
+                    setHoveredElement(hit);
+                    return;
+                }
+            }
             if (!hit && e.type === 'touchstart') setHoveredElement(null);
             setSelectedBenchPlayerId(null);
         }
@@ -1079,13 +1082,6 @@ export default function App() {
         setPaths(previousState.paths);
         setActivePlayerIds(previousState.activePlayers);
         setHistory(prev => prev.slice(0, -1));
-
-        // Persist the undo action
-        saveCurrentState({
-            positions: previousState.playerPositions,
-            paths: previousState.paths,
-            activePlayers: previousState.activePlayers
-        });
     };
 
     const redo = () => {
@@ -1101,13 +1097,6 @@ export default function App() {
         setPaths(nextState.paths);
         setActivePlayerIds(nextState.activePlayers);
         setFuture(prev => prev.slice(1));
-
-        // Persist the redo action
-        saveCurrentState({
-            positions: nextState.playerPositions,
-            paths: nextState.paths,
-            activePlayers: nextState.activePlayers
-        });
     };
 
     // Keyboard shortcuts
@@ -1355,7 +1344,7 @@ export default function App() {
                     <div className="flex-1 flex justify-start items-center gap-2 lg:gap-3">
                         <div className="bg-black p-2 rounded-lg text-red-600"><ClubLogo size={24} /></div>
                         <div>
-                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v1.0.0</span></h1>
+                            <h1 className="text-lg lg:text-xl font-black tracking-tight text-white">ACADEMYVB <span className="text-red-500">v0.9.3</span></h1>
                             <div className="flex items-center gap-1 lg:gap-2 text-[10px] lg:text-xs text-slate-400 mt-1 max-w-[400px]">
                                 {isEditingHeaderTeam ? (
                                     <input
@@ -1431,8 +1420,8 @@ export default function App() {
                                 <Trophy size={16} />
                                 <span className="hidden lg:inline">Plan</span>
                             </button>
-                            <button onClick={() => setActiveTab('scout')} className={`flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'scout' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
-                                <Search size={16} />
+                            <button onClick={() => setActiveTab('scout')} className={`flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'scout' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                <Shield size={16} />
                                 <span className="hidden lg:inline">Scout</span>
                             </button>
                         </div>
@@ -1476,7 +1465,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     <div className="bg-black p-1.5 rounded-md text-red-600"><ClubLogo size={18} /></div>
                     <div className="leading-none">
-                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v1.0.0</span></div>
+                        <div className="font-black text-white text-sm tracking-tight">ACADEMYVB <span className="text-red-500">v0.9.3</span></div>
                         <div className="flex items-center gap-1 mt-0.5">
                             <div className="text-[10px] text-slate-400 font-bold truncate max-w-[100px]" onClick={() => setIsTeamManagerOpen(true)}>{teams.find(t => t.id === currentTeamId)?.name}</div>
                             <span className="text-[8px] text-slate-600">/</span>
@@ -1626,7 +1615,6 @@ export default function App() {
                                         <textarea
                                             value={currentNotes}
                                             onChange={(e) => setCurrentNotes(e.target.value)}
-                                            onBlur={() => saveCurrentState({ notes: currentNotes })}
                                             className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-sm text-white resize-none h-24 focus:outline-none focus:border-slate-400"
                                             placeholder="Add notes for this phase..."
                                         />
@@ -1958,12 +1946,11 @@ export default function App() {
                     />
                 )}
 
+                {/* --- SCOUT VIEW --- */}
                 {activeTab === 'scout' && (
                     <ScoutPage
-                        scoutedTeams={scoutedTeams}
-                        scoutingSessions={scoutingSessions}
-                        setScoutedTeams={setScoutedTeams}
-                        setScoutingSessions={setScoutingSessions}
+                        opponents={scoutOpponents}
+                        setOpponents={setScoutOpponents}
                     />
                 )}
 
@@ -1975,7 +1962,7 @@ export default function App() {
                     <button onClick={() => setActiveTab('roster')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'roster' ? 'text-red-500' : 'text-slate-500'}`}><Users size={20} className={activeTab === 'roster' ? 'fill-current' : ''} /><span className="text-[10px] font-bold mt-1">Roster</span></button>
                     <button onClick={() => setActiveTab('board')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'board' ? 'text-red-500' : 'text-slate-500'}`}><CourtIcon size={20} /><span className="text-[10px] font-bold mt-1">Court</span></button>
                     <button onClick={() => { setActiveTab('export'); saveCurrentState(); }} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'export' ? 'text-red-500' : 'text-slate-500'}`}><Trophy size={20} /><span className="text-[10px] font-bold mt-1">Plan</span></button>
-                    <button onClick={() => setActiveTab('scout')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'scout' ? 'text-red-500' : 'text-slate-500'}`}><Search size={20} /><span className="text-[10px] font-bold mt-1">Scout</span></button>
+                    <button onClick={() => setActiveTab('scout')} className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'scout' ? 'text-amber-500' : 'text-slate-500'}`}><Shield size={20} /><span className="text-[10px] font-bold mt-1">Scout</span></button>
                 </div>
             </div >
             {/* Ghost Player Token for Dragging */}
@@ -1996,35 +1983,6 @@ export default function App() {
                     />
                 )
             }
-
-            {/* Delete Confirmation Modal */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]">
-                    <div className="bg-slate-800 border border-slate-600 rounded-lg p-6 max-w-md">
-                        <h3 className="text-white text-lg font-semibold mb-3">
-                            Confirm Delete
-                        </h3>
-                        <p className="text-slate-300 mb-6">
-                            Are you sure you want to delete {deleteConfirm.type} "{deleteConfirm.name}"?
-                            {deleteConfirm.type === 'team' && ' This will also delete all associated lineups.'}
-                        </p>
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={() => setDeleteConfirm(null)}
-                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmDelete}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div >
     );
 }

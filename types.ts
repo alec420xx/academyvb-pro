@@ -66,50 +66,80 @@ export interface Phase {
     attacker?: 'left' | 'middle' | 'right';
 }
 
-// Scout Types
-export interface ScoutedTeam {
-  id: string;
-  name: string;
-  color: string;
-  createdAt: number;
-  lastScoutedAt: number;
+// === SCOUT TYPES ===
+
+// Opponent player (for scouting)
+export interface ScoutPlayer {
+    id: string;
+    number: string;
+    name?: string;
+    isWeakPasser: boolean;
 }
 
-export interface ScoutingSession {
-  id: string;
-  teamId: string;
-  date: number;
-  opponent?: string;
-  rotations: ScoutedRotation[];
+// Pass grade (0-3 scale standard in volleyball)
+export type PassGrade = 0 | 1 | 2 | 3;
+
+// Attack outcome types
+export type AttackOutcome = 'kill' | 'error' | 'blocked' | 'dug';
+
+// Court dot types for tracking where points are scored/lost
+export type DotType = 'kill' | 'error' | 'ace' | 'serviceError' | 'block';
+
+// Pass event during a set
+export interface PassEvent {
+    id: string;
+    timestamp: number;
+    playerId: string;
+    grade: PassGrade;
 }
 
-export interface ScoutedRotation {
-  rotation: number;
-  players: ScoutedPlayer[];
-  stats: RotationStats;
-  notes: string;
+// Attack event during a set
+export interface AttackEvent {
+    id: string;
+    timestamp: number;
+    hitterId: string;
+    attackFromPosition: PlayerPosition;
+    attackToPosition: PlayerPosition;
+    outcome: AttackOutcome;
 }
 
-export interface ScoutedPlayer {
-  number: string;
-  position: string;
-  name?: string;
-  isMainHitter: boolean;
-  setterDumpFrequency?: number;
-  notes: string;
+// Court dot (point scored/lost location)
+export interface CourtDot {
+    id: string;
+    timestamp: number;
+    position: PlayerPosition;
+    type: DotType;
+    rotation?: number;
 }
 
-export interface RotationStats {
-  serveReceive: Record<string, number>;
-  transition: Record<string, number>;
-  freeBall: Record<string, number>;
-  outOfSystem: Record<string, number>;
-  pointsWon: ScoutPoint[];
-  pointsLost: ScoutPoint[];
+// Rotation positions for opponent team
+export interface ScoutRotationData {
+    positions: Record<string, PlayerPosition>;
+    manuallyAdjusted: boolean;
 }
 
-export interface ScoutPoint {
-  x: number;
-  y: number;
-  timestamp: number;
+// A single scouting session (one set of a match)
+export interface ScoutSet {
+    id: string;
+    opponentId: string;
+    date: number;
+    setNumber: number;
+    matchId?: string;
+    startingLineup: string[]; // Array of 6 ScoutPlayer IDs in rotation order
+    currentRotation: number;
+    rotations: Record<number, ScoutRotationData>;
+    passEvents: PassEvent[];
+    attackEvents: AttackEvent[];
+    courtDots: CourtDot[];
+    notes?: string;
+}
+
+// Opponent team (for scouting)
+export interface ScoutOpponent {
+    id: string;
+    name: string;
+    players: ScoutPlayer[];
+    sets: ScoutSet[];
+    createdAt: number;
+    updatedAt: number;
 }

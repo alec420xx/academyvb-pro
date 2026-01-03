@@ -79,11 +79,11 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                 {/* Full Roster Summary - DYNAMIC ROWS */}
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-lg w-auto min-w-[200px]">
                     <div className="text-xs font-bold text-slate-400 uppercase mb-2 border-b pb-1">Full Roster</div>
-                    <div className="grid gap-x-8 gap-y-1" style={{ gridTemplateRows: 'repeat(3, min-content)', gridAutoFlow: 'column' }}>
-                        {roster.map((p, i) => (
-                            <div key={p.id} className="text-xs flex justify-between gap-3 min-w-[120px] leading-relaxed">
-                                <span className="font-bold text-slate-700 w-6 shrink-0">{p.number}</span>
-                                <span className="text-slate-500">{p.name}</span>
+                    <div className="grid gap-x-6 gap-y-1" style={{ gridTemplateRows: 'repeat(3, min-content)', gridAutoFlow: 'column' }}>
+                        {roster.map((p) => (
+                            <div key={p.id} className="text-xs flex items-center gap-2 min-w-[100px]">
+                                <span className="text-slate-700 flex-1 truncate">{p.name}</span>
+                                <span className="font-bold text-slate-500 shrink-0">#{p.number}</span>
                             </div>
                         ))}
                     </div>
@@ -101,7 +101,7 @@ export const GamePlanPrintView: React.FC<GamePlanPrintViewProps> = ({
                         }
                     `}>
                         <div className="w-36 flex-none flex flex-col items-center justify-center gap-2 border-r border-slate-200 pr-3">
-                            <div className="bg-slate-900 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg leading-none">R{rot}</div>
+                            <div className="bg-slate-900 text-white w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg" style={{ lineHeight: '40px', textAlign: 'center' }}>R{rot}</div>
                             <div className="w-28 h-28">
                                 <RotationSquare rotation={rot} roster={roster} />
                             </div>
