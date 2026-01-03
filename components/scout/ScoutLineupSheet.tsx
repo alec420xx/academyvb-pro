@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
-import { ScoutPlayer } from '../../types';
 
 interface ScoutLineupSheetProps {
-    players: ScoutPlayer[];
-    onLineupComplete: (playerIds: string[], declaredRotation: number) => void;
+    onLineupComplete: (jerseyNumbers: Record<number, string>, declaredRotation: number) => void;
 }
 
 /**
- * A visual lineup sheet where users input jersey numbers into zone positions.
+ * A visual lineup sheet where users input jersey numbers directly into zone positions.
+ * No roster required - just type the numbers you see.
  * Users declare what rotation they're observing, and the system calculates the rest.
  *
  * Layout mirrors a volleyball court from the opponent's perspective:
@@ -16,10 +15,9 @@ interface ScoutLineupSheetProps {
  *   Zone 5 | Zone 6 | Zone 1   (back row - far from net)
  */
 export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
-    players,
     onLineupComplete
 }) => {
-    // Zone inputs - store jersey numbers, not player IDs
+    // Zone inputs - store jersey numbers directly
     const [zoneInputs, setZoneInputs] = useState<Record<number, string>>({
         1: '', 2: '', 3: '', 4: '', 5: '', 6: ''
     });
@@ -33,7 +31,9 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
     const bottomRow = [5, 6, 1];
 
     const handleInputChange = (zone: number, value: string) => {
-        setZoneInputs(prev => ({ ...prev, [zone]: value }));
+        // Only allow numbers
+        const numericValue = value.replace(/\D/g, '');
+        setZoneInputs(prev => ({ ...prev, [zone]: numericValue }));
         setError(null);
     };
 
@@ -45,33 +45,20 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
             return;
         }
 
-        // Map jersey numbers to player IDs
-        const playerIds: (string | null)[] = [];
-        const usedPlayerIds = new Set<string>();
-
-        // Order: zone 1, 6, 5, 4, 3, 2 (standard volleyball lineup order)
-        const zoneOrder = [1, 6, 5, 4, 3, 2];
-
-        for (const zone of zoneOrder) {
-            const jerseyNumber = zoneInputs[zone].trim();
-            const player = players.find(p => p.number === jerseyNumber && !usedPlayerIds.has(p.id));
-
-            if (!player) {
-                setError(`Player #${jerseyNumber} not found in roster. Add them first.`);
-                return;
-            }
-
-            usedPlayerIds.add(player.id);
-            playerIds.push(player.id);
+        // Check for duplicate numbers
+        const numbers = Object.values(zoneInputs).map(v => v.trim());
+        const uniqueNumbers = new Set(numbers);
+        if (uniqueNumbers.size !== 6) {
+            setError('Each player must have a unique number');
+            return;
         }
 
-        // All valid - submit
-        onLineupComplete(playerIds as string[], declaredRotation);
+        // All valid - submit jersey numbers and rotation
+        onLineupComplete(zoneInputs, declaredRotation);
     };
 
     const renderZoneInput = (zone: number) => {
         const value = zoneInputs[zone];
-        const player = value ? players.find(p => p.number === value.trim()) : null;
 
         return (
             <div
@@ -81,17 +68,13 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
                 <span className="text-xs text-slate-500 mb-1">Zone {zone}</span>
                 <input
                     type="text"
+                    inputMode="numeric"
                     value={value}
                     onChange={(e) => handleInputChange(zone, e.target.value)}
                     placeholder="#"
-                    className="w-12 h-12 text-center text-xl font-bold bg-slate-700 border border-slate-500 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    maxLength={3}
+                    className="w-14 h-14 text-center text-2xl font-bold bg-slate-700 border border-slate-500 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    maxLength={2}
                 />
-                {player && (
-                    <span className={`text-xs mt-1 ${player.isWeakPasser ? 'text-amber-400' : 'text-slate-400'}`}>
-                        {player.name || `#${player.number}`}
-                    </span>
-                )}
             </div>
         );
     };
@@ -99,6 +82,7 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
     return (
         <div className="flex flex-col items-center gap-6 p-6 bg-slate-900 rounded-xl max-w-md mx-auto">
             <h2 className="text-xl font-bold text-white">Enter Starting Lineup</h2>
+            <p className="text-sm text-slate-400 text-center -mt-4">Type jersey numbers into each zone</p>
 
             {/* Rotation selector */}
             <div className="flex items-center gap-3">
@@ -148,11 +132,6 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
             {error && (
                 <p className="text-red-400 text-sm text-center">{error}</p>
             )}
-
-            {/* Available players hint */}
-            <div className="text-xs text-slate-500 text-center">
-                <p>Available players: {players.map(p => `#${p.number}`).join(', ') || 'None'}</p>
-            </div>
 
             {/* Submit button */}
             <button

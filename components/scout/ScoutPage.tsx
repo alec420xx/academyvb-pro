@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, ChevronDown, Users, Target, BarChart3 } from 'lucide-react';
-import { ScoutOpponent, ScoutSet, ScoutPlayer, DotType, PassGrade, CourtDot, PassEvent, AttackEvent, PlayerPosition } from '../../types';
-import { generateId, calculateScoutRotationPositions } from '../../utils';
+import { ScoutOpponent, ScoutSet, ScoutPlayer, DotType, PassGrade, CourtDot, PassEvent, PlayerPosition } from '../../types';
+import { generateId } from '../../utils';
+import { SCOUT_ZONE_POSITIONS } from '../../constants';
 import { OpponentManager } from './OpponentManager';
 import { SetManager } from './SetManager';
 import { ScoutLineupSheet } from './ScoutLineupSheet';
@@ -104,22 +105,72 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
         updateOpponent(updated);
     }, [currentOpponent, currentSet, updateOpponent]);
 
-    // === PLAYER CRUD ===
-    const addPlayer = useCallback((number: string, name?: string) => {
-        if (!currentOpponent) return;
+    // === LINEUP (simplified - just jersey numbers) ===
+    /**
+     * Set the starting lineup from jersey numbers in each zone.
+     * Creates players on-the-fly from the entered numbers.
+     */
+    const setStartingLineupFromNumbers = useCallback((zoneNumbers: Record<number, string>, declaredRotation: number) => {
+        if (!currentOpponent || !currentSet) return;
 
-        const newPlayer: ScoutPlayer = {
-            id: generateId('sp'),
-            number,
-            name,
-            isWeakPasser: false
+        // Create players from the jersey numbers (or find existing)
+        const updatedPlayers = [...currentOpponent.players];
+        const lineupPlayerIds: string[] = [];
+
+        // Zone order for lineup: 1, 6, 5, 4, 3, 2
+        const zoneOrder = [1, 6, 5, 4, 3, 2];
+
+        for (const zone of zoneOrder) {
+            const jerseyNumber = zoneNumbers[zone].trim();
+
+            // Find existing player or create new one
+            let player = updatedPlayers.find(p => p.number === jerseyNumber);
+            if (!player) {
+                player = {
+                    id: generateId('sp'),
+                    number: jerseyNumber,
+                    isWeakPasser: false
+                };
+                updatedPlayers.push(player);
+            }
+            lineupPlayerIds.push(player.id);
+        }
+
+        // Calculate positions for all 6 rotations based on declared rotation
+        const rotations: Record<number, { positions: Record<string, PlayerPosition>; manuallyAdjusted: boolean }> = {};
+
+        for (let rot = 1; rot <= 6; rot++) {
+            // Calculate the offset from declared rotation
+            const offset = (rot - declaredRotation + 6) % 6;
+
+            // Build positions for this rotation
+            const positions: Record<string, PlayerPosition> = {};
+
+            zoneOrder.forEach((zone, lineupIdx) => {
+                const playerId = lineupPlayerIds[lineupIdx];
+                // Calculate which zone this player is in for this rotation
+                const rotatedZoneIdx = (lineupIdx + offset) % 6;
+                const rotatedZone = zoneOrder[rotatedZoneIdx];
+                const zonePos = SCOUT_ZONE_POSITIONS[rotatedZone];
+                positions[playerId] = { x: zonePos.x, y: zonePos.y };
+            });
+
+            rotations[rot] = { positions, manuallyAdjusted: false };
+        }
+
+        // Update opponent with new players and set with lineup
+        const updatedOpponent = {
+            ...currentOpponent,
+            players: updatedPlayers,
+            sets: currentOpponent.sets.map(s =>
+                s.id === currentSet.id
+                    ? { ...s, startingLineup: lineupPlayerIds, currentRotation: declaredRotation, rotations }
+                    : s
+            )
         };
 
-        updateOpponent({
-            ...currentOpponent,
-            players: [...currentOpponent.players, newPlayer]
-        });
-    }, [currentOpponent, updateOpponent]);
+        setOpponents(opponents.map(o => o.id === updatedOpponent.id ? { ...updatedOpponent, updatedAt: Date.now() } : o));
+    }, [currentOpponent, currentSet, opponents, setOpponents]);
 
     const toggleWeakPasser = useCallback((playerId: string) => {
         if (!currentOpponent) return;
@@ -132,61 +183,9 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
         });
     }, [currentOpponent, updateOpponent]);
 
-    // === LINEUP & ROTATION ===
-    /**
-     * Set the starting lineup from the lineup sheet.
-     * playerIds are in standard order: zone 1, 6, 5, 4, 3, 2
-     * declaredRotation is what rotation the user observed this lineup in
-     */
-    const setStartingLineup = useCallback((playerIds: string[], declaredRotation: number) => {
-        if (!currentSet || playerIds.length !== 6) return;
-
-        // Calculate positions for all 6 rotations based on declared rotation
-        const rotations: Record<number, { positions: Record<string, PlayerPosition>; manuallyAdjusted: boolean }> = {};
-
-        for (let rot = 1; rot <= 6; rot++) {
-            // Calculate the offset from declared rotation
-            // If declared is R3 and we want R1, we need to "reverse rotate" by 2
-            const offset = (rot - declaredRotation + 6) % 6;
-
-            // Reorder the lineup based on offset
-            const rotatedLineup = playerIds.map((_, idx) => {
-                const newIdx = (idx + offset) % 6;
-                return playerIds[newIdx];
-            });
-
-            const positions = calculateScoutRotationPositions(rotatedLineup, 1);
-            rotations[rot] = { positions, manuallyAdjusted: false };
-        }
-
-        updateCurrentSet({
-            startingLineup: playerIds,
-            currentRotation: declaredRotation,
-            rotations
-        });
-    }, [currentSet, updateCurrentSet]);
-
     const changeRotation = useCallback((newRotation: number) => {
         if (!currentSet || currentSet.startingLineup.length !== 6) return;
-
-        // Check if we have saved positions for this rotation
-        const existingRotation = currentSet.rotations[newRotation];
-
-        if (existingRotation) {
-            // Use existing positions (either calculated or manually adjusted)
-            updateCurrentSet({ currentRotation: newRotation });
-        } else {
-            // This shouldn't happen if setStartingLineup was called correctly
-            // But fall back to calculating
-            const positions = calculateScoutRotationPositions(currentSet.startingLineup, newRotation);
-            updateCurrentSet({
-                currentRotation: newRotation,
-                rotations: {
-                    ...currentSet.rotations,
-                    [newRotation]: { positions, manuallyAdjusted: false }
-                }
-            });
-        }
+        updateCurrentSet({ currentRotation: newRotation });
     }, [currentSet, updateCurrentSet]);
 
     const updatePlayerPosition = useCallback((playerId: string, position: PlayerPosition) => {
@@ -328,7 +327,7 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                         currentRotation={currentSet?.currentRotation || 1}
                         onRotationChange={changeRotation}
                         hasLineup={true}
-                        players={currentOpponent?.players || []}
+                        players={lineupPlayers}
                         selectedPlayerId={selectedPlayerId}
                         onPlayerSelect={setSelectedPlayerId}
                         onPassGrade={addPassEvent}
@@ -363,25 +362,10 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                             </button>
                         </div>
                     ) : currentSet.startingLineup.length < 6 ? (
-                        // Show the new lineup sheet for entering lineup
-                        currentOpponent.players.length < 6 ? (
-                            <div className="text-center text-slate-400 max-w-md">
-                                <Users size={48} className="mx-auto mb-3 opacity-50" />
-                                <p className="text-lg mb-2">Add opponent players first</p>
-                                <p className="text-sm mb-4">You need at least 6 players in the roster to enter a lineup.</p>
-                                <button
-                                    onClick={() => setShowOpponentManager(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500"
-                                >
-                                    Add Players ({currentOpponent.players.length}/6+)
-                                </button>
-                            </div>
-                        ) : (
-                            <ScoutLineupSheet
-                                players={currentOpponent.players}
-                                onLineupComplete={setStartingLineup}
-                            />
-                        )
+                        // Show the lineup sheet - just enter numbers directly
+                        <ScoutLineupSheet
+                            onLineupComplete={setStartingLineupFromNumbers}
+                        />
                     ) : (
                         // Show the full court view for scouting
                         <ScoutFullCourt
@@ -418,7 +402,7 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                     onSelect={(id) => {
                         setCurrentOpponentId(id);
                         setCurrentSetId(null);
-                        // Don't close modal - let user add players
+                        setShowOpponentManager(false);
                     }}
                     onCreate={(name) => {
                         const newOpponent: ScoutOpponent = {
@@ -431,11 +415,11 @@ export const ScoutPage: React.FC<ScoutPageProps> = ({ opponents, setOpponents })
                         };
                         setOpponents([...opponents, newOpponent]);
                         setCurrentOpponentId(newOpponent.id);
-                        // Don't close modal - let user add players
+                        setShowOpponentManager(false);
                     }}
                     onUpdate={updateOpponent}
                     onDelete={deleteOpponent}
-                    onAddPlayer={addPlayer}
+                    onAddPlayer={() => {}} // No longer needed - players created from lineup
                     onClose={() => setShowOpponentManager(false)}
                 />
             )}

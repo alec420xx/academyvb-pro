@@ -88,14 +88,16 @@ export const PlayerToken: React.FC<PlayerTokenProps> = ({
       style={{ ...positionStyle, touchAction: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       {small ? (
-        // Small token (print view) - absolute positioned for html2canvas compatibility
+        // Small token (print view) - pixel positioned for html2canvas compatibility
+        // Container is 16px, center text using fixed pixel offsets
         <span
           className="font-black pointer-events-none select-none"
           style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
+            top: '3px',
+            left: '0',
+            right: '0',
+            textAlign: 'center',
             fontSize: '9px',
             lineHeight: '1'
           }}
