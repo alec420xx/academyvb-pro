@@ -1751,54 +1751,60 @@ export default function App() {
                                     {/* TEXT INPUT OVERLAY - Photoshop style */}
                                     {textInputPosition && (
                                         <div
-                                            className="absolute z-50"
+                                            className="absolute z-50 bg-white rounded-lg shadow-xl border border-slate-300 p-3"
                                             style={{
                                                 left: `${textInputPosition.x}%`,
                                                 top: `${textInputPosition.y}%`,
                                                 transform: 'translate(-4px, -4px)'
                                             }}
                                         >
-                                            {/* Font size selector above the text input */}
-                                            <div className="flex items-center gap-1 mb-1">
+                                            {/* Font size selector */}
+                                            <div className="flex items-center gap-2 mb-2">
                                                 <select
                                                     value={textFontSize}
                                                     onChange={(e) => setTextFontSize(Number(e.target.value))}
-                                                    className="px-1 py-0.5 text-xs bg-slate-800 text-white border border-slate-600 rounded cursor-pointer"
+                                                    className="px-2 py-1 text-sm bg-slate-100 border border-slate-300 rounded cursor-pointer"
                                                 >
                                                     {[12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64].map(size => (
                                                         <option key={size} value={size}>{size}px</option>
                                                     ))}
                                                 </select>
-                                                <button
-                                                    onClick={handleTextCancel}
-                                                    className="p-0.5 text-slate-400 hover:text-white"
-                                                >
-                                                    <X size={14} />
-                                                </button>
+                                                <div
+                                                    className="w-6 h-6 rounded border border-slate-300"
+                                                    style={{ backgroundColor: drawColor }}
+                                                    title="Text color"
+                                                />
                                             </div>
-                                            {/* Text input that looks like direct text entry */}
+                                            {/* Text input */}
                                             <input
                                                 type="text"
                                                 value={textInputValue}
                                                 onChange={(e) => setTextInputValue(e.target.value)}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') handleTextSubmit();
+                                                    if (e.key === 'Enter' && textInputValue.trim()) handleTextSubmit();
                                                     if (e.key === 'Escape') handleTextCancel();
                                                 }}
-                                                onBlur={() => {
-                                                    if (textInputValue.trim()) handleTextSubmit();
-                                                    else handleTextCancel();
-                                                }}
-                                                placeholder="Type here..."
+                                                placeholder="Type text..."
                                                 autoFocus
-                                                className="bg-transparent border-none outline-none min-w-[100px]"
-                                                style={{
-                                                    color: drawColor,
-                                                    fontSize: `${textFontSize * 0.4}px`,
-                                                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                                                    caretColor: drawColor
-                                                }}
+                                                className="w-full px-2 py-1 text-base border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                style={{ color: drawColor }}
                                             />
+                                            {/* Buttons */}
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    onClick={handleTextSubmit}
+                                                    disabled={!textInputValue.trim()}
+                                                    className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Add
+                                                </button>
+                                                <button
+                                                    onClick={handleTextCancel}
+                                                    className="px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-medium rounded hover:bg-slate-300"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
