@@ -103,8 +103,8 @@ export default function App() {
     // Text tool state
     const [textInputPosition, setTextInputPosition] = useState<{x: number, y: number} | null>(null);
     const [textInputValue, setTextInputValue] = useState('');
+    const [textFontSize, setTextFontSize] = useState(20);
     const [draggedVertex, setDraggedVertex] = useState<{ pathIndex: number, vertexIndex: number } | null>(null);
-    const [resizingText, setResizingText] = useState<{ pathIndex: number, startY: number, startFontSize: number } | null>(null);
 
     const courtRef = useRef<HTMLDivElement>(null);
     const saveInProgressRef = useRef<boolean>(false);
@@ -237,14 +237,6 @@ export default function App() {
             const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
             if (distToDel < btnRadius) return { type: 'delete', index: i };
             if (distToMove < btnRadius) return { type: 'move-shape', index: i };
-
-            // Check resize handle for text (to the left of move button)
-            if (path.type === 'text' && path.text) {
-                const resizeX = center.x - spacing * 2.5;
-                const resizeY = center.y;
-                const distToResize = Math.sqrt(Math.pow(absX - resizeX, 2) + Math.pow(absY - resizeY, 2));
-                if (distToResize < btnRadius) return { type: 'resize-text', index: i };
-            }
         }
 
         // 2. Check Vertices
@@ -741,26 +733,11 @@ export default function App() {
 
             setMousePos({ x, y, cx, cy });
 
-            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null && !resizingText) {
+            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null) {
                 const hit = performHitTest(cx, cy, rect.width, rect.height);
                 if (window.matchMedia("(hover: hover)").matches) {
                     setHoveredElement(hit);
                 }
-            }
-
-            // Handle text resizing
-            if (mode === 'move' && resizingText) {
-                e.preventDefault();
-                const deltaY = cy - resizingText.startY;
-                // Increase font size as you drag down, decrease as you drag up (more sensitive)
-                const newFontSize = Math.max(8, Math.min(72, resizingText.startFontSize + deltaY * 1.5));
-                setPaths(prev => {
-                    const newPaths = [...prev];
-                    const path = { ...newPaths[resizingText.pathIndex] };
-                    path.fontSize = newFontSize;
-                    newPaths[resizingText.pathIndex] = path;
-                    return newPaths;
-                });
             }
 
             if (mode === 'move' && draggedVertex) {
@@ -833,10 +810,9 @@ export default function App() {
         };
 
         const handleWindowUp = (e: any) => {
-            if (draggedVertex || selectedShapeIndex !== null || resizingText) {
+            if (draggedVertex || selectedShapeIndex !== null) {
                 setDraggedVertex(null);
                 setSelectedShapeIndex(null);
-                setResizingText(null);
                 saveCurrentState();
             }
 
@@ -918,7 +894,7 @@ export default function App() {
             window.removeEventListener('touchmove', handleWindowMove);
             window.removeEventListener('touchend', handleWindowUp);
         };
-    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos, resizingText]);
+    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos]);
 
     const handleTokenDown = (e: any, playerId: string, isBench: boolean) => {
         e.stopPropagation();
@@ -1027,12 +1003,6 @@ export default function App() {
                     saveToHistory();
                     return;
                 }
-                if (hit.type === 'resize-text') {
-                    const path = paths[hit.index];
-                    setResizingText({ pathIndex: hit.index, startY: cy, startFontSize: path.fontSize || 16 });
-                    saveToHistory();
-                    return;
-                }
                 if ((hit.type === 'shape' || hit.type === 'ui-proximity') && e.type === 'touchstart') {
                     setHoveredElement(hit);
                     return;
@@ -1113,7 +1083,7 @@ export default function App() {
                 color: drawColor,
                 type: 'text',
                 text: textInputValue.trim(),
-                fontSize: 16
+                fontSize: textFontSize
             };
             const newPaths = [...paths, newPath];
             setPaths(newPaths);
@@ -1778,16 +1748,35 @@ export default function App() {
                                         )}
                                     </div>
 
-                                    {/* TEXT INPUT OVERLAY */}
+                                    {/* TEXT INPUT OVERLAY - Photoshop style */}
                                     {textInputPosition && (
                                         <div
-                                            className="absolute z-50 bg-white rounded-lg shadow-xl border border-slate-300 p-2"
+                                            className="absolute z-50"
                                             style={{
                                                 left: `${textInputPosition.x}%`,
                                                 top: `${textInputPosition.y}%`,
-                                                transform: 'translate(-10px, -10px)'
+                                                transform: 'translate(-4px, -4px)'
                                             }}
                                         >
+                                            {/* Font size selector above the text input */}
+                                            <div className="flex items-center gap-1 mb-1">
+                                                <select
+                                                    value={textFontSize}
+                                                    onChange={(e) => setTextFontSize(Number(e.target.value))}
+                                                    className="px-1 py-0.5 text-xs bg-slate-800 text-white border border-slate-600 rounded cursor-pointer"
+                                                >
+                                                    {[12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64].map(size => (
+                                                        <option key={size} value={size}>{size}px</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={handleTextCancel}
+                                                    className="p-0.5 text-slate-400 hover:text-white"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            {/* Text input that looks like direct text entry */}
                                             <input
                                                 type="text"
                                                 value={textInputValue}
@@ -1796,25 +1785,20 @@ export default function App() {
                                                     if (e.key === 'Enter') handleTextSubmit();
                                                     if (e.key === 'Escape') handleTextCancel();
                                                 }}
-                                                placeholder="Enter text..."
+                                                onBlur={() => {
+                                                    if (textInputValue.trim()) handleTextSubmit();
+                                                    else handleTextCancel();
+                                                }}
+                                                placeholder="Type here..."
                                                 autoFocus
-                                                className="px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
-                                                style={{ color: drawColor }}
+                                                className="bg-transparent border-none outline-none min-w-[100px]"
+                                                style={{
+                                                    color: drawColor,
+                                                    fontSize: `${textFontSize * 0.4}px`,
+                                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                                    caretColor: drawColor
+                                                }}
                                             />
-                                            <div className="flex gap-1 mt-1">
-                                                <button
-                                                    onClick={handleTextSubmit}
-                                                    className="flex-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                                                >
-                                                    Add
-                                                </button>
-                                                <button
-                                                    onClick={handleTextCancel}
-                                                    className="flex-1 px-2 py-1 bg-slate-200 text-slate-700 text-xs rounded hover:bg-slate-300"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
                                         </div>
                                     )}
                                 </div>

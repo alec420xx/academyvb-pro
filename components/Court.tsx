@@ -372,36 +372,6 @@ export const Court: React.FC<CourtProps> = ({
 
         ctx.stroke();
 
-        // Resize handle for text (next to other buttons)
-        if (path.type === 'text' && path.text) {
-            const resizeX = center.x - spacing * 2.5; // To the left of move button
-            const resizeY = center.y;
-
-            // Draw resize handle (small circle with up/down arrows)
-            ctx.beginPath();
-            ctx.arc(resizeX, resizeY, btnRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#10b981'; // Green
-            ctx.fill();
-
-            // Draw vertical resize icon (up/down arrows)
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1.5 * s;
-            const rr = 5 * s;
-            ctx.beginPath();
-            // Vertical line
-            ctx.moveTo(resizeX, resizeY - rr);
-            ctx.lineTo(resizeX, resizeY + rr);
-            // Top arrow head
-            ctx.moveTo(resizeX - 2 * s, resizeY - rr + 2 * s);
-            ctx.lineTo(resizeX, resizeY - rr);
-            ctx.lineTo(resizeX + 2 * s, resizeY - rr + 2 * s);
-            // Bottom arrow head
-            ctx.moveTo(resizeX - 2 * s, resizeY + rr - 2 * s);
-            ctx.lineTo(resizeX, resizeY + rr);
-            ctx.lineTo(resizeX + 2 * s, resizeY + rr - 2 * s);
-            ctx.stroke();
-        }
-
         ctx.restore();
     };
 
