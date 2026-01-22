@@ -985,10 +985,11 @@ export default function App() {
 
             if (hit) {
                 if (hit.type === 'delete') {
-                    setPaths(prev => prev.filter((_, i) => i !== hit.index));
-                    setHoveredElement(null);
-                    saveCurrentState();
                     saveToHistory();
+                    const newPaths = paths.filter((_, i) => i !== hit.index);
+                    setPaths(newPaths);
+                    setHoveredElement(null);
+                    saveCurrentState({ paths: newPaths });
                     return;
                 }
                 if (hit.type === 'move-shape') {
