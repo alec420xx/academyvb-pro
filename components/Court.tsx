@@ -63,7 +63,7 @@ export const Court: React.FC<CourtProps> = ({
             }));
         }
 
-        if (drawPoints.length < 2 && type !== 'rect') return;
+        if (drawPoints.length < 2 && type !== 'rect' && type !== 'text') return;
 
         ctx.beginPath();
         ctx.strokeStyle = color;
