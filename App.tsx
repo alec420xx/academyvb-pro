@@ -238,13 +238,10 @@ export default function App() {
             if (distToDel < btnRadius) return { type: 'delete', index: i };
             if (distToMove < btnRadius) return { type: 'move-shape', index: i };
 
-            // Check resize handle for text
+            // Check resize handle for text (to the left of move button)
             if (path.type === 'text' && path.text) {
-                const fontSize = (path.fontSize || 16) * s;
-                const textWidth = path.text.length * fontSize * 0.6;
-                const textHeight = fontSize * 1.2;
-                const resizeX = drawPoints[0].x + textWidth;
-                const resizeY = drawPoints[0].y + textHeight;
+                const resizeX = center.x - spacing * 2.5;
+                const resizeY = center.y;
                 const distToResize = Math.sqrt(Math.pow(absX - resizeX, 2) + Math.pow(absY - resizeY, 2));
                 if (distToResize < btnRadius) return { type: 'resize-text', index: i };
             }
@@ -755,8 +752,8 @@ export default function App() {
             if (mode === 'move' && resizingText) {
                 e.preventDefault();
                 const deltaY = cy - resizingText.startY;
-                // Increase font size as you drag down, decrease as you drag up
-                const newFontSize = Math.max(8, Math.min(72, resizingText.startFontSize + deltaY * 0.5));
+                // Increase font size as you drag down, decrease as you drag up (more sensitive)
+                const newFontSize = Math.max(8, Math.min(72, resizingText.startFontSize + deltaY * 1.5));
                 setPaths(prev => {
                     const newPaths = [...prev];
                     const path = { ...newPaths[resizingText.pathIndex] };

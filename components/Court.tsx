@@ -372,31 +372,33 @@ export const Court: React.FC<CourtProps> = ({
 
         ctx.stroke();
 
-        // Resize handle for text (bottom-right corner)
+        // Resize handle for text (next to other buttons)
         if (path.type === 'text' && path.text) {
-            const fontSize = (path.fontSize || 16) * s;
-            const textWidth = path.text.length * fontSize * 0.6;
-            const textHeight = fontSize * 1.2;
-            const resizeX = drawPoints[0].x + textWidth;
-            const resizeY = drawPoints[0].y + textHeight;
+            const resizeX = center.x - spacing * 2.5; // To the left of move button
+            const resizeY = center.y;
 
-            // Draw resize handle (small circle with diagonal arrows)
+            // Draw resize handle (small circle with up/down arrows)
             ctx.beginPath();
-            ctx.arc(resizeX, resizeY, btnRadius * 0.8, 0, Math.PI * 2);
+            ctx.arc(resizeX, resizeY, btnRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#10b981'; // Green
             ctx.fill();
 
-            // Draw diagonal resize icon
+            // Draw vertical resize icon (up/down arrows)
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 1.5 * s;
-            const rr = 4 * s;
+            const rr = 5 * s;
             ctx.beginPath();
-            ctx.moveTo(resizeX - rr, resizeY - rr);
-            ctx.lineTo(resizeX + rr, resizeY + rr);
-            // Arrow heads
-            ctx.moveTo(resizeX + rr - 2 * s, resizeY + rr);
-            ctx.lineTo(resizeX + rr, resizeY + rr);
-            ctx.lineTo(resizeX + rr, resizeY + rr - 2 * s);
+            // Vertical line
+            ctx.moveTo(resizeX, resizeY - rr);
+            ctx.lineTo(resizeX, resizeY + rr);
+            // Top arrow head
+            ctx.moveTo(resizeX - 2 * s, resizeY - rr + 2 * s);
+            ctx.lineTo(resizeX, resizeY - rr);
+            ctx.lineTo(resizeX + 2 * s, resizeY - rr + 2 * s);
+            // Bottom arrow head
+            ctx.moveTo(resizeX - 2 * s, resizeY + rr - 2 * s);
+            ctx.lineTo(resizeX, resizeY + rr);
+            ctx.lineTo(resizeX + 2 * s, resizeY + rr - 2 * s);
             ctx.stroke();
         }
 
