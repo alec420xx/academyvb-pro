@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>ACADEMYVB PRO</title>
+    
+    <!-- iOS / Apple App Store Readiness -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ACADEMYVB" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- PWA Manifest handling is done by vite-plugin-pwa -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.2.0",
+          "react/": "https://esm.sh/react@18.2.0/",
+          "react-dom": "https://esm.sh/react-dom@18.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+          "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+          "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react"
+        }
+      }
+    </script>
+    <style>
+      /* Native App Utilities */
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sab: env(safe-area-inset-bottom);
+      }
+
+      /* Custom Utility for Safe Area Bottom */
+      .pb-safe {
+        padding-bottom: var(--sab);
+      }
+      
+      /* Reset for native-app feel */
+      body {
+        overscroll-behavior-y: none; /* Prevent pull-to-refresh bounce */
+        -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+        -webkit-touch-callout: none; /* Disable long-press menu */
+        user-select: none; /* Disable text selection generally */
+        -webkit-user-select: none;
+        background-color: #020617; /* match slate-950 */
+      }
+
+      /* Re-enable selection for inputs */
+      input, textarea {
+        user-select: text;
+        -webkit-user-select: text;
+      }
+    </style>
+      }
+    </style>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+</body>
+</html>

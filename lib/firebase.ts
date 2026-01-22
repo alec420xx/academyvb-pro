@@ -1,0 +1,59 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore, enableIndexedDbPersistence, enableNetwork } from "firebase/firestore";
+
+// TODO: Replace with your Firebase project configuration
+// You can get this from the Firebase Console -> Project Settings -> General -> Your Apps
+const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+};
+
+// Debug logging to check if env vars are loaded
+console.log('Firebase config check:', {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasProjectId: !!firebaseConfig.projectId,
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain
+});
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error('CRITICAL: Firebase environment variables are missing!', firebaseConfig);
+    throw new Error('Firebase configuration is incomplete - check environment variables');
+}
+
+// Initialize Firebase
+let app;
+try {
+    app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized successfully');
+} catch (error: any) {
+    console.error('CRITICAL: Firebase initialization failed:', error);
+    throw error;
+}
+
+// Initialize Services
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// Ensure network is enabled for Firestore
+enableNetwork(db)
+    .then(() => console.log('Firestore network enabled'))
+    .catch((err) => console.error('Failed to enable Firestore network:', err));
+
+// Note: Offline persistence disabled as it can cause initialization hangs
+// enableIndexedDbPersistence(db).catch((err) => {
+//     if (err.code === 'failed-precondition') {
+//         console.warn('Firestore persistence failed: Multiple tabs open');
+//     } else if (err.code === 'unimplemented') {
+//         console.warn('Firestore persistence not available in this browser');
+//     }
+// });
+
+export default app;
