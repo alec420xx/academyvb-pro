@@ -177,6 +177,27 @@ export default function App() {
 
     const shouldEnforceRules = (phase: string) => ['receive1', 'receive2'].includes(phase);
 
+    // Helper to calculate shape center for UI buttons
+    const getShapeCenter = (path: DrawingPath, drawPoints: {x: number, y: number}[], s: number) => {
+        let center = { x: 0, y: 0 };
+        if (path.type === 'line') {
+            center = {
+                x: (drawPoints[0].x + drawPoints[drawPoints.length - 1].x) / 2,
+                y: (drawPoints[0].y + drawPoints[drawPoints.length - 1].y) / 2
+            };
+        } else if (path.type === 'arrow' || path.type === 'draw') {
+            const midIdx = Math.floor(drawPoints.length / 2);
+            center = drawPoints[midIdx] || drawPoints[0];
+        } else if (path.type === 'text' && path.text) {
+            const fontSize = (path.fontSize || 16) * s;
+            const textWidth = path.text.length * fontSize * 0.6;
+            center = { x: drawPoints[0].x + textWidth / 2, y: drawPoints[0].y + fontSize / 2 };
+        } else {
+            center = getCentroid(drawPoints);
+        }
+        return center;
+    };
+
     // New Hit Test Logic
     const performHitTest = (cx: number, cy: number, width: number, height: number) => {
         const absX = (cx / 100) * width;
@@ -187,27 +208,12 @@ export default function App() {
         const btnRadius = 12 * s;
         const spacing = 18 * s;
 
-        // 1. Check UI Controls
+        // 1. Check UI Controls for hovered element first (for visual consistency)
         if (hoveredElement && hoveredElement.type !== 'vertex') {
             const path = paths[hoveredElement.index];
             if (path) {
                 let drawPoints = path.points.map(p => ({ x: (p.x / 100) * width, y: (p.y / 100) * height }));
-                let center = { x: 0, y: 0 };
-                if (path.type === 'line') {
-                    center = {
-                        x: (drawPoints[0].x + drawPoints[drawPoints.length - 1].x) / 2,
-                        y: (drawPoints[0].y + drawPoints[drawPoints.length - 1].y) / 2
-                    };
-                } else if (path.type === 'arrow' || path.type === 'draw') {
-                    const midIdx = Math.floor(drawPoints.length / 2);
-                    center = drawPoints[midIdx];
-                } else if (path.type === 'text' && path.text) {
-                    const fontSize = (path.fontSize || 16) * s;
-                    const textWidth = path.text.length * fontSize * 0.6;
-                    center = { x: drawPoints[0].x + textWidth / 2, y: drawPoints[0].y + fontSize / 2 };
-                } else {
-                    center = getCentroid(drawPoints);
-                }
+                const center = getShapeCenter(path, drawPoints, s);
                 const delX = center.x + spacing, delY = center.y;
                 const moveX = center.x - spacing, moveY = center.y;
                 const distToDel = Math.sqrt(Math.pow(absX - delX, 2) + Math.pow(absY - delY, 2));
@@ -217,6 +223,19 @@ export default function App() {
                 const distToCenter = Math.sqrt(Math.pow(absX - center.x, 2) + Math.pow(absY - center.y, 2));
                 if (distToCenter < 50 * s) return { type: 'ui-proximity', index: hoveredElement.index };
             }
+        }
+
+        // 1b. Also check UI controls for ALL shapes (needed for touch/click without prior hover)
+        for (let i = paths.length - 1; i >= 0; i--) {
+            const path = paths[i];
+            const drawPoints = path.points.map(p => ({ x: (p.x / 100) * width, y: (p.y / 100) * height }));
+            const center = getShapeCenter(path, drawPoints, s);
+            const delX = center.x + spacing, delY = center.y;
+            const moveX = center.x - spacing, moveY = center.y;
+            const distToDel = Math.sqrt(Math.pow(absX - delX, 2) + Math.pow(absY - delY, 2));
+            const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
+            if (distToDel < btnRadius) return { type: 'delete', index: i };
+            if (distToMove < btnRadius) return { type: 'move-shape', index: i };
         }
 
         // 2. Check Vertices
