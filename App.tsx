@@ -201,6 +201,10 @@ export default function App() {
                 } else if (path.type === 'arrow' || path.type === 'draw') {
                     const midIdx = Math.floor(drawPoints.length / 2);
                     center = drawPoints[midIdx];
+                } else if (path.type === 'text' && path.text) {
+                    const fontSize = (path.fontSize || 16) * s;
+                    const textWidth = path.text.length * fontSize * 0.6;
+                    center = { x: drawPoints[0].x + textWidth / 2, y: drawPoints[0].y + fontSize / 2 };
                 } else {
                     center = getCentroid(drawPoints);
                 }
