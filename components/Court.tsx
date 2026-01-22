@@ -79,7 +79,7 @@ export const Court: React.FC<CourtProps> = ({
             const pos = drawPoints[0];
             const fontSize = (pathData.fontSize || 16) * s;
 
-            ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+            ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
 
@@ -371,6 +371,34 @@ export const Court: React.FC<CourtProps> = ({
         ctx.lineTo(moveX + 2 * s, moveY + r - 2 * s);
 
         ctx.stroke();
+
+        // Resize handle for text (bottom-right corner)
+        if (path.type === 'text' && path.text) {
+            const fontSize = (path.fontSize || 16) * s;
+            const textWidth = path.text.length * fontSize * 0.6;
+            const textHeight = fontSize * 1.2;
+            const resizeX = drawPoints[0].x + textWidth;
+            const resizeY = drawPoints[0].y + textHeight;
+
+            // Draw resize handle (small circle with diagonal arrows)
+            ctx.beginPath();
+            ctx.arc(resizeX, resizeY, btnRadius * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = '#10b981'; // Green
+            ctx.fill();
+
+            // Draw diagonal resize icon
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1.5 * s;
+            const rr = 4 * s;
+            ctx.beginPath();
+            ctx.moveTo(resizeX - rr, resizeY - rr);
+            ctx.lineTo(resizeX + rr, resizeY + rr);
+            // Arrow heads
+            ctx.moveTo(resizeX + rr - 2 * s, resizeY + rr);
+            ctx.lineTo(resizeX + rr, resizeY + rr);
+            ctx.lineTo(resizeX + rr, resizeY + rr - 2 * s);
+            ctx.stroke();
+        }
 
         ctx.restore();
     };

@@ -104,6 +104,7 @@ export default function App() {
     const [textInputPosition, setTextInputPosition] = useState<{x: number, y: number} | null>(null);
     const [textInputValue, setTextInputValue] = useState('');
     const [draggedVertex, setDraggedVertex] = useState<{ pathIndex: number, vertexIndex: number } | null>(null);
+    const [resizingText, setResizingText] = useState<{ pathIndex: number, startY: number, startFontSize: number } | null>(null);
 
     const courtRef = useRef<HTMLDivElement>(null);
     const saveInProgressRef = useRef<boolean>(false);
@@ -236,6 +237,17 @@ export default function App() {
             const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
             if (distToDel < btnRadius) return { type: 'delete', index: i };
             if (distToMove < btnRadius) return { type: 'move-shape', index: i };
+
+            // Check resize handle for text
+            if (path.type === 'text' && path.text) {
+                const fontSize = (path.fontSize || 16) * s;
+                const textWidth = path.text.length * fontSize * 0.6;
+                const textHeight = fontSize * 1.2;
+                const resizeX = drawPoints[0].x + textWidth;
+                const resizeY = drawPoints[0].y + textHeight;
+                const distToResize = Math.sqrt(Math.pow(absX - resizeX, 2) + Math.pow(absY - resizeY, 2));
+                if (distToResize < btnRadius) return { type: 'resize-text', index: i };
+            }
         }
 
         // 2. Check Vertices
@@ -732,11 +744,26 @@ export default function App() {
 
             setMousePos({ x, y, cx, cy });
 
-            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null) {
+            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null && !resizingText) {
                 const hit = performHitTest(cx, cy, rect.width, rect.height);
                 if (window.matchMedia("(hover: hover)").matches) {
                     setHoveredElement(hit);
                 }
+            }
+
+            // Handle text resizing
+            if (mode === 'move' && resizingText) {
+                e.preventDefault();
+                const deltaY = cy - resizingText.startY;
+                // Increase font size as you drag down, decrease as you drag up
+                const newFontSize = Math.max(8, Math.min(72, resizingText.startFontSize + deltaY * 0.5));
+                setPaths(prev => {
+                    const newPaths = [...prev];
+                    const path = { ...newPaths[resizingText.pathIndex] };
+                    path.fontSize = newFontSize;
+                    newPaths[resizingText.pathIndex] = path;
+                    return newPaths;
+                });
             }
 
             if (mode === 'move' && draggedVertex) {
@@ -809,9 +836,10 @@ export default function App() {
         };
 
         const handleWindowUp = (e: any) => {
-            if (draggedVertex || selectedShapeIndex !== null) {
+            if (draggedVertex || selectedShapeIndex !== null || resizingText) {
                 setDraggedVertex(null);
                 setSelectedShapeIndex(null);
+                setResizingText(null);
                 saveCurrentState();
             }
 
@@ -893,7 +921,7 @@ export default function App() {
             window.removeEventListener('touchmove', handleWindowMove);
             window.removeEventListener('touchend', handleWindowUp);
         };
-    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos]);
+    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos, resizingText]);
 
     const handleTokenDown = (e: any, playerId: string, isBench: boolean) => {
         e.stopPropagation();
@@ -999,6 +1027,12 @@ export default function App() {
                 }
                 if (hit.type === 'vertex') {
                     setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
+                    saveToHistory();
+                    return;
+                }
+                if (hit.type === 'resize-text') {
+                    const path = paths[hit.index];
+                    setResizingText({ pathIndex: hit.index, startY: cy, startFontSize: path.fontSize || 16 });
                     saveToHistory();
                     return;
                 }
