@@ -1021,17 +1021,23 @@ export default function App() {
                 }
                 if (hit.type === 'move-shape') {
                     setSelectedShapeIndex(hit.index);
+                    // Initialize mousePos to current touch position to prevent jump on first move
+                    setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
                 }
                 if (hit.type === 'vertex') {
                     setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
+                    // Initialize mousePos to current touch position to prevent jump on first move
+                    setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
                 }
                 if (hit.type === 'resize-text') {
                     const path = paths[hit.index];
                     setResizingText({ pathIndex: hit.index, startY: cy, startFontSize: path.fontSize || 20 });
+                    // Initialize mousePos to current touch position to prevent jump on first move
+                    setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
                 }
