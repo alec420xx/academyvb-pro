@@ -372,6 +372,41 @@ export const Court: React.FC<CourtProps> = ({
 
         ctx.stroke();
 
+        // Resize Handle for Text (bottom-right corner)
+        if (path.type === 'text' && path.text) {
+            const fontSize = (path.fontSize || 16) * s;
+            const textWidth = path.text.length * fontSize * 0.6;
+            const textHeight = fontSize * 1.2;
+            const resizeX = drawPoints[0].x + textWidth + 8 * s;
+            const resizeY = drawPoints[0].y + textHeight + 8 * s;
+
+            ctx.beginPath();
+            ctx.arc(resizeX, resizeY, btnRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#22c55e'; // Green
+            ctx.fill();
+
+            // Draw resize icon (diagonal arrows)
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1.5 * s;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const iconSize = 4 * s;
+            ctx.beginPath();
+            // Diagonal line
+            ctx.moveTo(resizeX - iconSize, resizeY - iconSize);
+            ctx.lineTo(resizeX + iconSize, resizeY + iconSize);
+            // Top-left arrow head
+            ctx.moveTo(resizeX - iconSize + 2 * s, resizeY - iconSize);
+            ctx.lineTo(resizeX - iconSize, resizeY - iconSize);
+            ctx.lineTo(resizeX - iconSize, resizeY - iconSize + 2 * s);
+            // Bottom-right arrow head
+            ctx.moveTo(resizeX + iconSize - 2 * s, resizeY + iconSize);
+            ctx.lineTo(resizeX + iconSize, resizeY + iconSize);
+            ctx.lineTo(resizeX + iconSize, resizeY + iconSize - 2 * s);
+            ctx.stroke();
+        }
+
         ctx.restore();
     };
 

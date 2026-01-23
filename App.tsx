@@ -103,8 +103,8 @@ export default function App() {
     // Text tool state
     const [textInputPosition, setTextInputPosition] = useState<{x: number, y: number} | null>(null);
     const [textInputValue, setTextInputValue] = useState('');
-    const [textFontSize, setTextFontSize] = useState(20);
     const [draggedVertex, setDraggedVertex] = useState<{ pathIndex: number, vertexIndex: number } | null>(null);
+    const [resizingText, setResizingText] = useState<{ pathIndex: number, startY: number, startFontSize: number } | null>(null);
 
     const courtRef = useRef<HTMLDivElement>(null);
     const saveInProgressRef = useRef<boolean>(false);
@@ -237,6 +237,17 @@ export default function App() {
             const distToMove = Math.sqrt(Math.pow(absX - moveX, 2) + Math.pow(absY - moveY, 2));
             if (distToDel < btnRadius) return { type: 'delete', index: i };
             if (distToMove < btnRadius) return { type: 'move-shape', index: i };
+
+            // Check resize handle for text (bottom-right corner of text)
+            if (path.type === 'text' && path.text) {
+                const fontSize = (path.fontSize || 16) * s;
+                const textWidth = path.text.length * fontSize * 0.6;
+                const textHeight = fontSize * 1.2;
+                const resizeX = drawPoints[0].x + textWidth + 8 * s;
+                const resizeY = drawPoints[0].y + textHeight + 8 * s;
+                const distToResize = Math.sqrt(Math.pow(absX - resizeX, 2) + Math.pow(absY - resizeY, 2));
+                if (distToResize < btnRadius) return { type: 'resize-text', index: i };
+            }
         }
 
         // 2. Check Vertices
@@ -733,7 +744,7 @@ export default function App() {
 
             setMousePos({ x, y, cx, cy });
 
-            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null) {
+            if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null && !resizingText) {
                 const hit = performHitTest(cx, cy, rect.width, rect.height);
                 if (window.matchMedia("(hover: hover)").matches) {
                     setHoveredElement(hit);
@@ -749,6 +760,20 @@ export default function App() {
                     newPoints[draggedVertex.vertexIndex] = { x: cx, y: cy };
                     path.points = newPoints;
                     newPaths[draggedVertex.pathIndex] = path;
+                    return newPaths;
+                });
+            }
+
+            // Handle text resizing
+            if (mode === 'move' && resizingText) {
+                e.preventDefault();
+                const deltaY = cy - resizingText.startY;
+                const newFontSize = Math.max(10, Math.min(80, resizingText.startFontSize + deltaY * 1.0));
+                setPaths(prev => {
+                    const newPaths = [...prev];
+                    const path = { ...newPaths[resizingText.pathIndex] };
+                    path.fontSize = newFontSize;
+                    newPaths[resizingText.pathIndex] = path;
                     return newPaths;
                 });
             }
@@ -810,9 +835,10 @@ export default function App() {
         };
 
         const handleWindowUp = (e: any) => {
-            if (draggedVertex || selectedShapeIndex !== null) {
+            if (draggedVertex || selectedShapeIndex !== null || resizingText) {
                 setDraggedVertex(null);
                 setSelectedShapeIndex(null);
+                setResizingText(null);
                 saveCurrentState();
             }
 
@@ -894,7 +920,7 @@ export default function App() {
             window.removeEventListener('touchmove', handleWindowMove);
             window.removeEventListener('touchend', handleWindowUp);
         };
-    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos]);
+    }, [mode, draggedPlayer, isDrawing, currentPath, playerPositions, activePlayerIds, savedRotations, draggedVertex, hoveredElement, selectedShapeIndex, mousePos, resizingText]);
 
     const handleTokenDown = (e: any, playerId: string, isBench: boolean) => {
         e.stopPropagation();
@@ -1003,6 +1029,12 @@ export default function App() {
                     saveToHistory();
                     return;
                 }
+                if (hit.type === 'resize-text') {
+                    const path = paths[hit.index];
+                    setResizingText({ pathIndex: hit.index, startY: cy, startFontSize: path.fontSize || 20 });
+                    saveToHistory();
+                    return;
+                }
                 if ((hit.type === 'shape' || hit.type === 'ui-proximity') && e.type === 'touchstart') {
                     setHoveredElement(hit);
                     return;
@@ -1083,7 +1115,7 @@ export default function App() {
                 color: drawColor,
                 type: 'text',
                 text: textInputValue.trim(),
-                fontSize: textFontSize
+                fontSize: 20
             };
             const newPaths = [...paths, newPath];
             setPaths(newPaths);
@@ -1748,7 +1780,7 @@ export default function App() {
                                         )}
                                     </div>
 
-                                    {/* TEXT INPUT OVERLAY - Photoshop style */}
+                                    {/* TEXT INPUT OVERLAY */}
                                     {textInputPosition && (
                                         <div
                                             className="absolute z-50 bg-white rounded-lg shadow-xl border border-slate-300 p-3"
@@ -1758,19 +1790,6 @@ export default function App() {
                                                 transform: 'translate(-4px, -4px)'
                                             }}
                                         >
-                                            {/* Font size selector */}
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-sm text-slate-600 font-medium">Size:</span>
-                                                <select
-                                                    value={textFontSize}
-                                                    onChange={(e) => setTextFontSize(Number(e.target.value))}
-                                                    className="px-3 py-1.5 text-base font-medium bg-white border-2 border-slate-300 rounded cursor-pointer"
-                                                >
-                                                    {[12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64].map(size => (
-                                                        <option key={size} value={size}>{size}px</option>
-                                                    ))}
-                                                </select>
-                                            </div>
                                             {/* Text input */}
                                             <input
                                                 type="text"
@@ -1782,7 +1801,7 @@ export default function App() {
                                                 }}
                                                 placeholder="Type text..."
                                                 autoFocus
-                                                className="w-full px-2 py-1 text-base border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-2 py-1.5 text-base border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                 style={{ color: drawColor }}
                                             />
                                             {/* Buttons */}
