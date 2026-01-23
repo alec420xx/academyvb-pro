@@ -96,6 +96,7 @@ export default function App() {
     const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
     const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0, cx: 0, cy: 0 });
+    const mousePosRef = useRef({ x: 0, y: 0, cx: 0, cy: 0 });
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentPath, setCurrentPath] = useState<DrawingPath | null>(null);
 
@@ -739,9 +740,11 @@ export default function App() {
             // If coords are wildly outside the court (e.g. >50% margin), ignore them to prevent snapping
             if (isNaN(cx) || isNaN(cy) || !isFinite(cx) || !isFinite(cy) || cx < -50 || cx > 150 || cy < -50 || cy > 150) return;
 
-            const dx = cx - (mousePos.cx || cx);
-            const dy = cy - (mousePos.cy || cy);
+            const dx = cx - (mousePosRef.current.cx || cx);
+            const dy = cy - (mousePosRef.current.cy || cy);
 
+            // Update both ref (for immediate sync reads) and state (for re-renders)
+            mousePosRef.current = { x, y, cx, cy };
             setMousePos({ x, y, cx, cy });
 
             if (mode === 'move' && !draggedPlayer && !draggedVertex && !isDrawing && selectedShapeIndex === null && !resizingText) {
@@ -1021,14 +1024,16 @@ export default function App() {
                 }
                 if (hit.type === 'move-shape') {
                     setSelectedShapeIndex(hit.index);
-                    // Initialize mousePos to current touch position to prevent jump on first move
+                    // Initialize mousePos ref immediately to prevent jump on first move
+                    mousePosRef.current = { x, y, cx, cy };
                     setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
                 }
                 if (hit.type === 'vertex') {
                     setDraggedVertex({ pathIndex: hit.index, vertexIndex: hit.vertexIndex });
-                    // Initialize mousePos to current touch position to prevent jump on first move
+                    // Initialize mousePos ref immediately to prevent jump on first move
+                    mousePosRef.current = { x, y, cx, cy };
                     setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
@@ -1036,7 +1041,8 @@ export default function App() {
                 if (hit.type === 'resize-text') {
                     const path = paths[hit.index];
                     setResizingText({ pathIndex: hit.index, startY: cy, startFontSize: path.fontSize || 20 });
-                    // Initialize mousePos to current touch position to prevent jump on first move
+                    // Initialize mousePos ref immediately to prevent jump on first move
+                    mousePosRef.current = { x, y, cx, cy };
                     setMousePos({ x, y, cx, cy });
                     saveToHistory();
                     return;
