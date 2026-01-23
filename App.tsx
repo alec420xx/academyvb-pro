@@ -1760,11 +1760,11 @@ export default function App() {
                                         >
                                             {/* Font size selector */}
                                             <div className="flex items-center gap-2 mb-2">
-                                                <span className="text-xs text-slate-500">Size:</span>
+                                                <span className="text-sm text-slate-600 font-medium">Size:</span>
                                                 <select
                                                     value={textFontSize}
                                                     onChange={(e) => setTextFontSize(Number(e.target.value))}
-                                                    className="px-2 py-1 text-sm bg-slate-100 border border-slate-300 rounded cursor-pointer"
+                                                    className="px-3 py-1.5 text-base font-medium bg-white border-2 border-slate-300 rounded cursor-pointer"
                                                 >
                                                     {[12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64].map(size => (
                                                         <option key={size} value={size}>{size}px</option>
