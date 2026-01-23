@@ -1760,6 +1760,7 @@ export default function App() {
                                         >
                                             {/* Font size selector */}
                                             <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs text-slate-500">Size:</span>
                                                 <select
                                                     value={textFontSize}
                                                     onChange={(e) => setTextFontSize(Number(e.target.value))}
@@ -1769,11 +1770,6 @@ export default function App() {
                                                         <option key={size} value={size}>{size}px</option>
                                                     ))}
                                                 </select>
-                                                <div
-                                                    className="w-6 h-6 rounded border border-slate-300"
-                                                    style={{ backgroundColor: drawColor }}
-                                                    title="Text color"
-                                                />
                                             </div>
                                             {/* Text input */}
                                             <input
