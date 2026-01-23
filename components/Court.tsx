@@ -301,10 +301,9 @@ export const Court: React.FC<CourtProps> = ({
             const midIdx = Math.floor(drawPoints.length / 2);
             center = drawPoints[midIdx];
         } else if (path.type === 'text' && path.text) {
-            // For text, place center to the right of the text
+            // For text, place buttons at top-left corner (offset above/left of text start)
             const fontSize = (path.fontSize || 16) * s;
-            const textWidth = path.text.length * fontSize * 0.6; // Approximate width
-            center = { x: drawPoints[0].x + textWidth / 2, y: drawPoints[0].y + fontSize / 2 };
+            center = { x: drawPoints[0].x, y: drawPoints[0].y - 20 * s };
         } else {
             center = getCentroid(drawPoints);
         }
