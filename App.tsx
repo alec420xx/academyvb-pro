@@ -1783,10 +1783,10 @@ export default function App() {
                                     {/* TEXT INPUT OVERLAY */}
                                     {textInputPosition && (
                                         <div
-                                            className="absolute z-50 bg-white rounded-lg shadow-xl border border-slate-300 p-3"
+                                            className="absolute z-50 bg-white rounded-lg shadow-xl border border-slate-300 p-3 min-w-[180px]"
                                             style={{
-                                                left: `${textInputPosition.x}%`,
-                                                top: `${textInputPosition.y}%`,
+                                                left: `${Math.min(Math.max(textInputPosition.x, 5), 70)}%`,
+                                                top: `${Math.min(Math.max(textInputPosition.y, 5), 75)}%`,
                                                 transform: 'translate(-4px, -4px)'
                                             }}
                                         >
@@ -1801,21 +1801,21 @@ export default function App() {
                                                 }}
                                                 placeholder="Type text..."
                                                 autoFocus
-                                                className="w-full px-2 py-1.5 text-base border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                style={{ color: drawColor }}
+                                                className="w-full px-3 py-2 text-base border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                style={{ color: drawColor, fontSize: '16px' }}
                                             />
                                             {/* Buttons */}
                                             <div className="flex gap-2 mt-2">
                                                 <button
                                                     onClick={handleTextSubmit}
                                                     disabled={!textInputValue.trim()}
-                                                    className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    className="flex-1 px-4 py-2.5 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     Add
                                                 </button>
                                                 <button
                                                     onClick={handleTextCancel}
-                                                    className="px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-medium rounded hover:bg-slate-300"
+                                                    className="px-4 py-2.5 bg-slate-200 text-slate-700 text-sm font-medium rounded hover:bg-slate-300 active:bg-slate-400"
                                                 >
                                                     Cancel
                                                 </button>
