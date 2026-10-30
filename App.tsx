@@ -1290,6 +1290,7 @@ export default function App() {
         setPaths(previousState.paths);
         setActivePlayerIds(previousState.activePlayers);
         setHistory(prev => prev.slice(0, -1));
+        saveCurrentState({ positions: previousState.playerPositions, paths: previousState.paths, activePlayers: previousState.activePlayers });
     };
 
     const redo = () => {
@@ -1305,6 +1306,7 @@ export default function App() {
         setPaths(nextState.paths);
         setActivePlayerIds(nextState.activePlayers);
         setFuture(prev => prev.slice(1));
+        saveCurrentState({ positions: nextState.playerPositions, paths: nextState.paths, activePlayers: nextState.activePlayers });
     };
 
     // Keyboard shortcuts
@@ -1826,6 +1828,7 @@ export default function App() {
                                         <textarea
                                             value={currentNotes}
                                             onChange={(e) => setCurrentNotes(e.target.value)}
+                                            onBlur={() => saveCurrentState()}
                                             className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-sm text-white resize-none h-24 focus:outline-none focus:border-slate-400"
                                             placeholder="Add notes for this phase..."
                                         />
@@ -1884,7 +1887,7 @@ export default function App() {
                                     {/* OVERLAY BUTTONS FOR COURT ACTIONS (Inside Court Container to be relative) */}
                                     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-40">
                                         {['draw', 'line', 'arrow', 'polygon', 'rect', 'triangle', 'text'].includes(mode) && (
-                                            <button onClick={() => { saveToHistory(); setPaths([]); }} className="text-[10px] md:text-xs text-rose-500 flex items-center gap-1 px-3 py-1.5 bg-white/90 rounded-full border border-slate-200 shadow-sm hover:bg-white"><Trash2 size={12} /> Clear Drawing</button>
+                                            <button onClick={() => { saveToHistory(); setPaths([]); saveCurrentState({ paths: [] }); }} className="text-[10px] md:text-xs text-rose-500 flex items-center gap-1 px-3 py-1.5 bg-white/90 rounded-full border border-slate-200 shadow-sm hover:bg-white"><Trash2 size={12} /> Clear Drawing</button>
                                         )}
                                         {mode === 'move' && (
                                             <button onClick={handleResetPositions} className="text-[10px] md:text-xs text-slate-500 flex items-center gap-1 px-3 py-1.5 bg-white/90 rounded-full border border-slate-200 shadow-sm hover:bg-white"><RefreshCw size={12} /> Reset Pos</button>
@@ -1954,6 +1957,7 @@ export default function App() {
                                     currentPhasesList={currentPhasesList}
                                     currentNotes={currentNotes}
                                     setCurrentNotes={setCurrentNotes}
+                                    onNotesBlur={() => saveCurrentState()}
                                 />
                             </div>
 

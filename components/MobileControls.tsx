@@ -13,6 +13,7 @@ interface MobileControlsProps {
     // Notes state
     currentNotes: string;
     setCurrentNotes: (notes: string) => void;
+    onNotesBlur?: () => void;
 }
 
 export const MobileControls: React.FC<MobileControlsProps> = ({
@@ -22,7 +23,8 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
     gameMode,
     currentPhasesList,
     currentNotes,
-    setCurrentNotes
+    setCurrentNotes,
+    onNotesBlur
 }) => {
     return (
         <div className="lg:hidden w-full mt-4 space-y-4 order-4 pb-32">
@@ -88,6 +90,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
                 <textarea
                     value={currentNotes}
                     onChange={(e) => setCurrentNotes(e.target.value)}
+                    onBlur={onNotesBlur}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white resize-none h-20 focus:outline-none focus:border-slate-400"
                     placeholder="Add notes..."
                 />
