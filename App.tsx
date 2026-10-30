@@ -95,6 +95,9 @@ export default function App() {
     // Interaction
     const [draggedPlayer, setDraggedPlayer] = useState<{ id: string, isBench: boolean } | null>(null);
     const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState<string | null>(null);
+    // Court-to-court drag: where the dragged player started, and who they'd swap rotation spots with if dropped now
+    const dragOriginRef = useRef<PlayerPosition | null>(null);
+    const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0, cx: 0, cy: 0 });
     const mousePosRef = useRef({ x: 0, y: 0, cx: 0, cy: 0 });
     const [isDrawing, setIsDrawing] = useState(false);
@@ -445,6 +448,68 @@ export default function App() {
         setLineups(updatedLineups);
 
         return newRotations;
+    };
+
+    // Find the court player (other than draggedId) under a drop point, within token radius
+    const findSwapTarget = (draggedId: string, cx: number, cy: number) => {
+        let nearestId: string | null = null;
+        let minDist = 6;
+        activePlayerIds.forEach(id => {
+            const pos = playerPositions[id];
+            if (id === draggedId || !pos) return;
+            const dist = Math.sqrt(Math.pow(pos.x - cx, 2) + Math.pow(pos.y - cy, 2));
+            if (dist < minDist) { minDist = dist; nearestId = id; }
+        });
+        return nearestId;
+    };
+
+    // Swap two court players' rotation spots across every rotation and phase (offense + defense)
+    const swapRotationSpots = (aId: string, bId: string, aOrigin: PlayerPosition) => {
+        const swapIds = (ids: string[]) => ids.map(id => id === aId ? bId : id === bId ? aId : id);
+        const swapPositions = (positions: Record<string, PlayerPosition>) => {
+            const next = { ...positions };
+            delete next[aId];
+            delete next[bId];
+            if (positions[bId]) next[aId] = positions[bId];
+            if (positions[aId]) next[bId] = positions[aId];
+            return next;
+        };
+
+        const newActive = swapIds(activePlayerIds);
+        const newPositions = { ...playerPositions, [aId]: playerPositions[bId], [bId]: aOrigin };
+
+        const newRotations: Record<string, SavedRotationData> = {};
+        Object.entries(savedRotations).forEach(([key, data]: [string, SavedRotationData]) => {
+            newRotations[key] = {
+                ...data,
+                activePlayers: swapIds(data.activePlayers || []),
+                positions: swapPositions(data.positions || {})
+            };
+        });
+        newRotations[getStorageKey(currentRotation, currentPhase, gameMode)] = {
+            positions: JSON.parse(JSON.stringify(newPositions)),
+            paths: JSON.parse(JSON.stringify(paths)),
+            activePlayers: newActive,
+            notes: currentNotes
+        };
+
+        // Keep roster starter order in step so rotations without saved data default correctly
+        let newRoster = roster;
+        const ia = roster.findIndex(p => p.id === aId);
+        const ib = roster.findIndex(p => p.id === bId);
+        if (ia > -1 && ib > -1 && ia < 6 && ib < 6) {
+            newRoster = [...roster];
+            [newRoster[ia], newRoster[ib]] = [newRoster[ib], newRoster[ia]];
+        }
+
+        setActivePlayerIds(newActive);
+        setPlayerPositions(newPositions);
+        setRoster(newRoster);
+        setSavedRotations(newRotations);
+        setLineups(lineups.map(l => l.id === currentLineupId ? { ...l, rotations: newRotations, roster: newRoster } : l));
+        // Undo only covers the current view, so it can't cleanly revert a lineup-wide swap
+        setHistory([]);
+        setFuture([]);
     };
 
     // --- REAL-TIME VIEW SYNC ---
@@ -810,6 +875,7 @@ export default function App() {
                         newY = Math.max(constraints.minY, Math.min(constraints.maxY, newY));
                     }
                     setPlayerPositions(prev => ({ ...prev, [draggedPlayer.id]: { x: newX, y: newY } }));
+                    setSwapTargetId(findSwapTarget(draggedPlayer.id, cx, cy));
                 }
             }
             else if (isDrawing && currentPath) {
@@ -891,8 +957,35 @@ export default function App() {
                             }
                         }
                     }
+                } else {
+                    // Dropped on another court player: swap their rotation spots
+                    const rect = courtRef.current?.getBoundingClientRect();
+                    const coords = getCoords(e);
+                    const origin = dragOriginRef.current;
+                    if (rect && coords && origin) {
+                        const dropX = ((coords.x - rect.left) / rect.width) * 100;
+                        const dropY = ((coords.y - rect.top) / rect.height) * 100;
+                        const targetId = findSwapTarget(draggedPlayer.id, dropX, dropY);
+                        if (targetId) {
+                            const roles = [draggedPlayer.id, targetId].map(id => roster.find(p => p.id === id)?.role);
+                            setDraggedPlayer(null);
+                            setSwapTargetId(null);
+                            dragOriginRef.current = null;
+                            if (roles.includes('L')) {
+                                alert("The libero can't swap rotation spots. Sub the libero in from the bench instead.");
+                                const restored = { ...playerPositions, [draggedPlayer.id]: origin };
+                                setPlayerPositions(restored);
+                                saveCurrentState({ positions: restored });
+                            } else {
+                                swapRotationSpots(draggedPlayer.id, targetId, origin);
+                            }
+                            return;
+                        }
+                    }
                 }
                 setDraggedPlayer(null);
+                setSwapTargetId(null);
+                dragOriginRef.current = null;
                 // Pass overrides if we did a substitution, otherwise save current state
                 if (substitutionData) {
                     saveCurrentState(substitutionData);
@@ -967,6 +1060,7 @@ export default function App() {
                 saveCurrentState({ positions: newPositions, activePlayers: newActive });
             } else {
                 saveToHistory();
+                dragOriginRef.current = playerPositions[playerId] || null;
                 setDraggedPlayer({ id: playerId, isBench });
             }
         }
@@ -1778,7 +1872,7 @@ export default function App() {
                                         {Object.entries(playerPositions).map(([id, pos]: [string, any]) => {
                                             const player = roster.find(p => p.id === id);
                                             if (!player) return null;
-                                            return <PlayerToken key={id} player={player} x={pos.x} y={pos.y} isDragging={draggedPlayer?.id === id && !draggedPlayer?.isBench} isBench={false} isInteractive={mode === 'move'} onStartInteraction={handleTokenDown} />;
+                                            return <PlayerToken key={id} player={player} x={pos.x} y={pos.y} isDragging={draggedPlayer?.id === id && !draggedPlayer?.isBench} isSelected={swapTargetId === id} isBench={false} isInteractive={mode === 'move'} onStartInteraction={handleTokenDown} />;
                                         })}
                                     </Court>
 
