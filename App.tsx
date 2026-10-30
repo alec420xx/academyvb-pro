@@ -690,8 +690,13 @@ export default function App() {
     };
 
     const handleResetPositions = () => {
-        initRotationDefaults(currentRotation, roster, true);
-        saveCurrentState();
+        // Reset the players currently on court (keeps subs) to their default zones for this rotation
+        const activePlayers = activePlayerIds.map(id => roster.find(p => p.id === id)).filter((p): p is Player => !!p);
+        const positions = calculateDefaultPositions(currentRotation, activePlayers.length === 6 ? activePlayers : roster);
+        saveToHistory();
+        setPlayerPositions(positions);
+        // Save with the new positions explicitly; state hasn't updated yet in this closure
+        saveCurrentState({ positions });
     };
 
     const handleViewChange = (newRot: number, newPhase: string, newMode: GameMode = gameMode) => {
