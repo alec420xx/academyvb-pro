@@ -11,12 +11,14 @@ interface RosterViewProps {
     // For now, let's pass a specialized update function or the setter.
     // Ideally, the parent passes an "onUpdateRoster" function.
     updateRoster: (index: number, field: keyof Player, value: any) => void;
+    deletePlayer: (id: string) => void;
 }
 
 export const RosterView: React.FC<RosterViewProps> = ({
     roster,
     setRoster,
-    updateRoster
+    updateRoster,
+    deletePlayer
 }) => {
     return (
         <div className="max-w-4xl mx-auto bg-slate-800 md:rounded-2xl shadow-xl border-y md:border border-slate-700 overflow-hidden mb-40">
@@ -36,7 +38,7 @@ export const RosterView: React.FC<RosterViewProps> = ({
                             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{idx < 6 ? `Starter ${idx + 1}` : 'Bench'}</div>
                             {roster.length > 6 && (
                                 <button
-                                    onClick={() => setRoster(prev => prev.filter(p => p.id !== player.id))}
+                                    onClick={() => deletePlayer(player.id)}
                                     className="text-slate-500 hover:text-rose-500 transition-colors"
                                 >
                                     <Trash2 size={14} />

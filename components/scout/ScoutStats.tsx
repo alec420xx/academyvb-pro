@@ -152,7 +152,7 @@ export const ScoutStats: React.FC<ScoutStatsProps> = ({
 
                                     {/* Per-player pass stats */}
                                     <div className="space-y-1">
-                                        {Object.entries(stats.passStats.byPlayer)
+                                        {(Object.entries(stats.passStats.byPlayer) as [string, { total: number; sum: number; avg: number }][])
                                             .sort((a, b) => a[1].avg - b[1].avg) // Sort worst to best
                                             .map(([playerId, pStats]) => {
                                                 const player = opponent.players.find(p => p.id === playerId);

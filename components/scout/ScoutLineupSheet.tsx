@@ -39,14 +39,14 @@ export const ScoutLineupSheet: React.FC<ScoutLineupSheetProps> = ({
 
     const handleSubmit = () => {
         // Validate all zones are filled
-        const filledZones = Object.values(zoneInputs).filter(v => v.trim() !== '');
+        const filledZones = (Object.values(zoneInputs) as string[]).filter(v => v.trim() !== '');
         if (filledZones.length !== 6) {
             setError('Please fill in all 6 positions');
             return;
         }
 
         // Check for duplicate numbers
-        const numbers = Object.values(zoneInputs).map(v => v.trim());
+        const numbers = (Object.values(zoneInputs) as string[]).map(v => v.trim());
         const uniqueNumbers = new Set(numbers);
         if (uniqueNumbers.size !== 6) {
             setError('Each player must have a unique number');

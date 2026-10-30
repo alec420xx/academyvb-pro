@@ -368,7 +368,7 @@ export default function App() {
             }
         };
 
-        // If activePlayers changed, propagate to ALL rotations and ALL phases (offense + defense)
+        // If activePlayers changed (a sub), propagate to ALL rotations and ALL phases (offense + defense)
         if (overrides?.activePlayers) {
             const oldActivePlayers = activePlayerIds;
             const newActivePlayers = overrides.activePlayers;
@@ -385,53 +385,51 @@ export default function App() {
             }
 
             if (oldPlayerId && newPlayerId) {
-                // Propagate to CURRENT rotation only, BOTH offense and defense phases
-                const rot = currentRotation;
-                // Process both offense and defense phases
-                [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
-                    const phaseMode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
-                    const phaseKey = getStorageKey(rot, phase.id, phaseMode);
+                const oldId = oldPlayerId;
+                const newId = newPlayerId;
+                const newIsLibero = roster.find(p => p.id === newId)?.role === 'L';
+
+                // Propagate to ALL rotations, BOTH offense and defense phases
+                for (let rot = 1; rot <= 6; rot++) {
+                    [...OFFENSE_PHASES, ...DEFENSE_PHASES].forEach(phase => {
+                        const phaseMode = OFFENSE_PHASES.includes(phase) ? 'offense' : 'defense';
+                        const phaseKey = getStorageKey(rot, phase.id, phaseMode);
 
                         // Skip the current key (already updated above)
                         if (phaseKey === key) return;
 
                         const existingData = newRotations[phaseKey];
+                        const hasData = !!(existingData && existingData.activePlayers?.length && existingData.positions && Object.keys(existingData.positions).length > 0);
+                        const baseActivePlayers = hasData ? existingData.activePlayers : oldActivePlayers;
 
-                        // Get positions - use existing or create defaults
-                        let basePositions: Record<string, PlayerPosition>;
-                        let baseActivePlayers: string[];
+                        const slot = baseActivePlayers.indexOf(oldId);
+                        // Nothing to replace, or the new player is already on court here
+                        if (slot === -1 || baseActivePlayers.includes(newId)) return;
+                        // A libero only goes in where that spot is in the back row
+                        if (newIsLibero && isFrontRow(getPlayerZone(slot, rot))) return;
 
-                        if (existingData && existingData.positions && Object.keys(existingData.positions).length > 0) {
-                            basePositions = existingData.positions;
-                            baseActivePlayers = existingData.activePlayers || [];
+                        const updatedActivePlayers = baseActivePlayers.map(id => id === oldId ? newId : id);
+
+                        let newPositions: Record<string, PlayerPosition>;
+                        if (hasData) {
+                            newPositions = {};
+                            Object.entries(existingData.positions).forEach(([id, pos]: [string, PlayerPosition]) => {
+                                newPositions[id === oldId ? newId : id] = pos;
+                            });
                         } else {
-                            // Create default positions for this rotation with the NEW active players
-                            basePositions = calculateDefaultPositions(rot, roster);
-                            baseActivePlayers = [...newActivePlayers]; // Use new active players
+                            // No saved layout yet: default zones for the players actually on court
+                            const players = updatedActivePlayers.map(id => roster.find(p => p.id === id)).filter((p): p is Player => !!p);
+                            newPositions = calculateDefaultPositions(rot, players);
                         }
 
-                        // Swap the player ID in positions
-                        const newPositions: Record<string, PlayerPosition> = {};
-                        Object.entries(basePositions).forEach(([id, pos]) => {
-                            if (id === oldPlayerId) {
-                                newPositions[newPlayerId!] = pos;
-                            } else {
-                                newPositions[id] = pos;
-                            }
-                        });
-
-                        // Update activePlayers list
-                        const updatedActivePlayers = baseActivePlayers.map(
-                            id => id === oldPlayerId ? newPlayerId! : id
-                        );
-
-                    newRotations[phaseKey] = {
-                        positions: newPositions,
-                        paths: existingData?.paths || [],
-                        activePlayers: updatedActivePlayers.length > 0 ? updatedActivePlayers : newActivePlayers,
-                        notes: existingData?.notes || ''
-                    };
-                });
+                        newRotations[phaseKey] = {
+                            positions: newPositions,
+                            paths: existingData?.paths || [],
+                            activePlayers: updatedActivePlayers,
+                            notes: existingData?.notes || ''
+                        };
+                    });
+                }
             }
         }
 
@@ -1387,6 +1385,16 @@ export default function App() {
         setRoster(newRoster);
     };
 
+    const deletePlayer = (id: string) => {
+        const player = roster.find(p => p.id === id);
+        const onCourt = activePlayerIds.includes(id) || Object.values(savedRotations).some((r: SavedRotationData) => r.activePlayers?.includes(id));
+        if (onCourt) {
+            alert(`${player?.number ? '#' + player.number + ' ' : ''}${player?.name || 'This player'} is on the court in your rotations. Sub them out on the Court tab first, then delete.`);
+            return;
+        }
+        setRoster(prev => prev.filter(p => p.id !== id));
+    };
+
     const currentPhasesList = gameMode === 'offense' ? OFFENSE_PHASES : DEFENSE_PHASES;
     const currentAttacker = currentPhasesList.find(p => p.id === currentPhase)?.attacker;
 
@@ -2202,6 +2210,7 @@ export default function App() {
                         roster={roster}
                         setRoster={setRoster}
                         updateRoster={updateRoster}
+                        deletePlayer={deletePlayer}
                     />
                 )}
 
